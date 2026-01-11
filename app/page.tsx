@@ -1,29 +1,23 @@
 "use client"
 import { useState, useRef } from 'react'
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Loader2, Plus, Users, Receipt, Calculator, Share2, Trash2 } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from "@/components/ui/table"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { 
+  Loader2, Plus, Receipt, Share2, 
+  X, ChevronDown, ChevronUp, Copy, Check 
+} from "lucide-react"
 
-
-
+interface ReceiptItem { name: string; price: number; quantity: number; }
+interface ReceiptData { items: ReceiptItem[]; tax: number; total: number; }
+// New interface for the split result table
+interface SplitRecord { name: string; amount: number; items: string; }
 
 type Step = 'NAMES' | 'SCAN' | 'REVIEW' | 'SUMMARY'
-
-interface ReceiptItem {
-  name: string
-  quantity: number
-  price: number
-}
-
-interface ReceiptData {
-  items: ReceiptItem[]
-  tax: number
-  total: number
-}
-
 const API_URL = "https://dizzy-michele-pravinraj-codes-1a321834.koyeb.app"
 
 export default function BillSplitter() {
@@ -31,20 +25,27 @@ export default function BillSplitter() {
   const [people, setPeople] = useState<string[]>([])
   const [newName, setNewName] = useState("")
   const [items, setItems] = useState<ReceiptData | null>(null)
+  const [includeTax, setIncludeTax] = useState(true)
   const [instruction, setInstruction] = useState("")
-  const [splitResult, setSplitResult] = useState("")
+  const [splitResult, setSplitResult] = useState("") 
+  const [structuredSplit, setStructuredSplit] = useState<SplitRecord[]>([])
+  const [showReasoning, setShowReasoning] = useState(false)
   const [loading, setLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Step 1 Functions
   const addPerson = () => {
-    if (newName.trim()) {
-      setPeople([...people, newName.trim()])
-      setNewName("")
+    const name = newName.trim();
+    if (name && !people.includes(name)) {
+      setPeople(prev => [...prev, name]);
+      setNewName("");
     }
   }
 
-  // Step 2 & 3: Scan & Split (Similar to previous, but updating step)
+  // FIXED DELETE FUNCTION
+  const removePerson = (nameToRemove: string) => {
+    setPeople(prev => prev.filter(p => p !== nameToRemove));
+  }
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return
     setLoading(true)
@@ -66,123 +67,216 @@ export default function BillSplitter() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           receipt_data: JSON.stringify(items),
-          user_instruction: instruction || "Split everything equally",
-          people_list: people // Passing our new list of names
+          user_instruction: instruction || "Split equally",
+          people_list: people,
+          apply_tax: includeTax
         })
       })
       const data = await res.json()
+      
+      // Attempt to parse the structured part of the AI response
+      // We expect the AI to provide a JSON block inside the response
+      try {
+        const jsonMatch = data.result.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          setStructuredSplit(JSON.parse(jsonMatch[0]));
+        }
+      } catch (e) { console.error("Could not parse table data") }
+      
       setSplitResult(data.result)
       setStep('SUMMARY')
     } catch (err) { alert("Split failed") }
     setLoading(false)
   }
 
+  const handleWhatsAppShare = () => {
+    let text = "*Bill-a Settlement Summary*\n\n";
+    structuredSplit.forEach(row => {
+      text += `👤 *${row.name}*: RM${row.amount.toFixed(2)}\n`;
+    });
+    window.open(`whatsapp://send?text=${encodeURIComponent(text)}`);
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50/50 p-4 md:p-8 flex justify-center">
-      <div className="w-full max-w-2xl space-y-8">
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-black tracking-tight text-slate-900">BILL-A</h1>
-          <p className="text-slate-500 font-medium italic">Precision AI Bill Splitting</p>
-        </div>
+    <SidebarProvider>
+      <SidebarInset className="bg-[#09090b] text-slate-50 min-h-screen font-sans">
+        <header className="flex h-14 shrink-0 items-center justify-between px-6 border-b border-white/5">
+          <div className="flex items-center gap-2">
+            <div className="bg-white p-1 rounded">
+              <Receipt className="w-3 h-3 text-black" />
+            </div>
+            <span className="text-sm font-bold tracking-tighter ">Bill.a</span>
+          </div>
+          <Badge variant="outline" className="text-[10px] border-white/10 opacity-50">V1.0</Badge>
+        </header>
 
-        {/* STEP 1: ADD PEOPLE */}
-        {step === 'NAMES' && (
-          <Card className="shadow-xl border-none ring-1 ring-slate-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Users className="w-5 h-5"/> Add Your Group</CardTitle>
-              <CardDescription>Who are we splitting with today?</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex gap-2">
-                <Input placeholder="Enter name..." value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addPerson()} />
-                <Button onClick={addPerson} variant="secondary"><Plus className="w-4 h-4"/></Button>
-              </div>
-              <div className="flex flex-wrap gap-2 min-h-[40px]">
-                {people.map((p, i) => (
-                  <Badge key={i} variant="outline" className="px-3 py-1 text-sm bg-white gap-2">
-                    {p} <Trash2 className="w-3 h-3 cursor-pointer text-slate-400 hover:text-red-500" onClick={() => setPeople(people.filter((_, idx) => idx !== i))}/>
-                  </Badge>
-                ))}
-              </div>
-              <Button className="w-full h-12 text-md font-bold" disabled={people.length < 1} onClick={() => setStep('SCAN')}>Next: Scan Receipt</Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* STEP 2: SCAN */}
-        {step === 'SCAN' && (
-          <Card className="shadow-xl border-dashed border-2 border-slate-300">
-            <CardContent className="p-12 text-center space-y-4">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
-                <Receipt className="w-8 h-8 text-slate-600"/>
-              </div>
+        <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full">
+          
+          {step === 'NAMES' && (
+            <div className="space-y-6 animate-in fade-in duration-500">
               <div className="space-y-1">
-                <h3 className="text-lg font-bold">Ready to Scan</h3>
-                <p className="text-sm text-slate-500">Capture the receipt for {people.length} people</p>
+                <h2 className="text-xl font-bold tracking-tight">Group Setup</h2>
+                <p className="text-slate-500 text-xs uppercase tracking-widest">Step 1 of 3</p>
               </div>
-              <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-              <Button className="w-full h-14 text-lg" onClick={() => fileInputRef.current?.click()} disabled={loading}>
-                {loading ? <Loader2 className="animate-spin mr-2"/> : "Snap Photo"}
-              </Button>
-              <Button variant="ghost" onClick={() => setStep('NAMES')}>Go Back</Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* STEP 3: REVIEW */}
-        {step === 'REVIEW' && (
-          <Card className="shadow-xl overflow-hidden border-none ring-1 ring-slate-200">
-             <CardHeader className="bg-slate-900 text-white">
-              <CardTitle className="text-lg">Review Items</CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <div className="max-h-60 overflow-y-auto rounded-lg border bg-slate-50 p-4 font-mono text-sm">
-                {items?.items.map((item: ReceiptItem, i: number) => (
-                  <div key={i} className="flex justify-between py-1 border-b border-slate-200 last:border-0">
-                    <span>{item.name} x{item.quantity}</span>
-                    <span className="font-bold">${item.price.toFixed(2)}</span>
+              <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl">
+                <CardContent className="pt-6 space-y-4">
+                  <div className="flex gap-2">
+                    <Input 
+                      className="bg-[#141416] border-white/5 focus:ring-1 ring-white/20 h-11" 
+                      placeholder="Enter name..." 
+                      value={newName} 
+                      onChange={(e) => setNewName(e.target.value)} 
+                      onKeyDown={(e) => e.key === 'Enter' && addPerson()} 
+                    />
+                    <Button onClick={addPerson} className="bg-white text-black hover:bg-slate-200"><Plus size={18}/></Button>
                   </div>
-                ))}
-                <Separator className="my-2"/>
-                <div className="flex justify-between text-slate-500 italic">
-                  <span>Detected Tax/Svc</span>
-                  <span>${items?.tax.toFixed(2)}</span>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <label className="text-sm font-bold uppercase text-slate-500">Special Instructions</label>
-                <Input placeholder="Example: Lim had the pasta, split wine between girls..." value={instruction} onChange={(e) => setInstruction(e.target.value)} className="h-12"/>
-                <Button className="w-full h-14 bg-black" onClick={handleSplit} disabled={loading}>
-                   {loading ? <Loader2 className="animate-spin mr-2"/> : "Finalize Split ✨"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  <div className="flex flex-wrap gap-2 min-h-[44px] p-2 rounded-lg bg-black/20 border border-white/5">
+                    {people.map((p) => (
+                      <Badge key={p} variant="secondary" className="bg-white/5 hover:bg-white/10 py-1.5 px-3 flex gap-2 items-center border-none text-slate-300">
+                        {p} 
+                        <button 
+                          onClick={(e) => { e.preventDefault(); removePerson(p); }}
+                          className="hover:bg-white/20 rounded-full p-0.5 transition-colors"
+                        >
+                          <X size={12}/>
+                        </button>
+                      </Badge>
+                    ))}
+                    {people.length === 0 && <span className="text-slate-600 text-xs flex items-center px-2 italic">No names added yet...</span>}
+                  </div>
+                  <Button className="w-full h-11 bg-white text-black font-bold text-sm" disabled={people.length < 1} onClick={() => setStep('SCAN')}>
+                    Start Scanning
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
-        {/* STEP 4: SUMMARY */}
-        {step === 'SUMMARY' && (
-          <Card className="shadow-2xl border-none ring-2 ring-black bg-white overflow-hidden">
-            <CardHeader className="text-center pb-2">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <Calculator className="w-6 h-6 text-green-600"/>
-              </div>
-              <CardTitle className="text-2xl font-black">Settlement Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6 text-center">
-              <div className="bg-slate-50 p-6 rounded-2xl whitespace-pre-wrap font-medium text-slate-700 leading-relaxed text-left border border-slate-200">
-                {splitResult}
-              </div>
-              <div className="flex gap-2">
-                <Button className="flex-1 h-12 bg-green-600 hover:bg-green-700 font-bold" onClick={() => navigator.clipboard.writeText(splitResult)}>
-                  <Share2 className="w-4 h-4 mr-2"/> WhatsApp
-                </Button>
-                <Button variant="outline" className="flex-1 h-12" onClick={() => window.location.reload()}>New Bill</Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>
+          {step === 'SCAN' && (
+            <div className="space-y-6 animate-in slide-in-from-bottom-4">
+              <Card className="bg-[#0c0c0e] border-dashed border border-white/10 py-12">
+                <CardContent className="text-center space-y-6">
+                  <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/10">
+                    <Receipt className="w-6 h-6 text-white opacity-40"/>
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-lg font-bold">Scan Receipt</h3>
+                    <p className="text-xs text-slate-500 uppercase tracking-widest">Analyzing for {people.join(", ")}</p>
+                  </div>
+                  <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                  <Button className="w-full h-14 text-md bg-white text-black font-bold" onClick={() => fileInputRef.current?.click()} disabled={loading}>
+                    {loading ? <Loader2 className="animate-spin mr-2"/> : "Snap Photo"}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+
+          {step === 'REVIEW' && (
+            <div className="space-y-6">
+              <Card className="bg-[#0c0c0e] border-white/5 overflow-hidden shadow-2xl">
+                <div className="bg-white/5 p-4 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-slate-500">Extracted Items</div>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader className="bg-white/5">
+                      <TableRow className="border-white/5">
+                        <TableHead className="text-[10px] uppercase text-slate-500">Item</TableHead>
+                        <TableHead className="text-center text-[10px] uppercase text-slate-500">Qty</TableHead>
+                        <TableHead className="text-right text-[10px] uppercase text-slate-500">Total (RM)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {items?.items.map((item: any, i: number) => (
+                        <TableRow key={i} className="border-white/5 hover:bg-white/[0.02]">
+                          <TableCell className="py-4 font-medium text-sm">
+                            {item.name}
+                            <div className="text-[10px] text-slate-500 italic">RM{item.unit_price.toFixed(2)} each</div>
+                          </TableCell>
+                          <TableCell className="text-center text-sm text-slate-400">x{item.quantity}</TableCell>
+                          <TableCell className="text-right font-mono text-white">
+                            {item.total_price.toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <div className="p-6 space-y-6">
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-black border border-white/5">
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] font-bold uppercase text-slate-500">Apply Tax & Svc</div>
+                        <div className="text-xs text-white opacity-60">RM{items?.tax.toFixed(2)} detected</div>
+                      </div>
+                      <Switch checked={includeTax} onCheckedChange={setIncludeTax} />
+                    </div>
+                    <div className="space-y-3">
+                      <Input 
+                        placeholder="Assign items? (e.g. Lim had the burger)" 
+                        value={instruction} 
+                        onChange={(e) => setInstruction(e.target.value)} 
+                        className="bg-black border-white/5 h-12 text-sm" 
+                      />
+                      <Button className="w-full h-12 bg-white text-black font-bold" onClick={handleSplit} disabled={loading}>
+                         {loading ? <Loader2 className="animate-spin mr-2"/> : "Split Bill"}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {step === 'SUMMARY' && (
+            <div className="space-y-6">
+              <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl overflow-hidden ring-1 ring-white/10">
+                <CardHeader className="text-center border-b border-white/5 py-4">
+                  <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em]">Final Split</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader className="bg-white/[0.02]">
+                      <TableRow className="border-white/5">
+                        <TableHead className="text-[10px] uppercase font-bold text-slate-500">Name</TableHead>
+                        <TableHead className="text-right text-[10px] uppercase font-bold text-slate-500">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {structuredSplit.map((row, i) => (
+                        <TableRow key={i} className="border-white/5">
+                          <TableCell className="py-4 font-bold text-sm">{row.name}</TableCell>
+                          <TableCell className="text-right font-mono text-white">RM{row.amount.toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  <div className="p-6 space-y-4">
+                    <div className="border border-white/5 rounded-lg overflow-hidden">
+                      <button onClick={() => setShowReasoning(!showReasoning)} className="w-full p-3 flex justify-between items-center text-[10px] font-bold text-slate-500 hover:bg-white/5 transition-colors uppercase">
+                        View Math Breakdown {showReasoning ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                      </button>
+                      {showReasoning && (
+                        <div className="p-4 bg-black text-[10px] font-mono text-slate-500 border-t border-white/5 whitespace-pre-wrap leading-relaxed">
+                          {splitResult}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button className="flex-1 h-12 bg-[#25D366] hover:bg-[#20bd5a] text-black font-black" onClick={handleWhatsAppShare}>
+                        <Share2 className="w-4 h-4 mr-2"/> Share WhatsApp
+                      </Button>
+                      <Button variant="outline" className="flex-1 h-12 border-white/5" onClick={() => window.location.reload()}>
+                        Reset
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
