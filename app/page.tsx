@@ -9,12 +9,11 @@ import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from "@
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { 
   Loader2, Plus, Receipt, Share2, 
-  X, ChevronDown, ChevronUp, Copy, Check 
+  X, ChevronDown, ChevronUp, ChevronLeft, Image as ImageIcon 
 } from "lucide-react"
 
-interface ReceiptItem { name: string; price: number; quantity: number; }
-interface ReceiptData { items: ReceiptItem[]; tax: number; total: number; }
-// New interface for the split result table
+interface ReceiptItem { name: string; total_price: number; quantity: number; unit_price: number; }
+interface ReceiptData { items: ReceiptItem[]; tax: number; total: number; currency: string; }
 interface SplitRecord { name: string; amount: number; items: string; }
 
 type Step = 'NAMES' | 'SCAN' | 'REVIEW' | 'SUMMARY'
@@ -32,6 +31,10 @@ export default function BillSplitter() {
   const [showReasoning, setShowReasoning] = useState(false)
   const [loading, setLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const galleryRef = useRef<HTMLInputElement>(null) // ADDED: Gallery Ref
+
+  // ADDED: Dynamic Symbol
+  const symbol = items?.currency || "RM";
 
   const addPerson = () => {
     const name = newName.trim();
@@ -41,7 +44,6 @@ export default function BillSplitter() {
     }
   }
 
-  // FIXED DELETE FUNCTION
   const removePerson = (nameToRemove: string) => {
     setPeople(prev => prev.filter(p => p !== nameToRemove));
   }
@@ -73,16 +75,12 @@ export default function BillSplitter() {
         })
       })
       const data = await res.json()
-      
-      // Attempt to parse the structured part of the AI response
-      // We expect the AI to provide a JSON block inside the response
       try {
         const jsonMatch = data.result.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
           setStructuredSplit(JSON.parse(jsonMatch[0]));
         }
       } catch (e) { console.error("Could not parse table data") }
-      
       setSplitResult(data.result)
       setStep('SUMMARY')
     } catch (err) { alert("Split failed") }
@@ -90,9 +88,9 @@ export default function BillSplitter() {
   }
 
   const handleWhatsAppShare = () => {
-    let text = "*Bill-a Settlement Summary*\n\n";
+    let text = `*Bill-a Settlement Summary (${symbol})*\n\n`;
     structuredSplit.forEach(row => {
-      text += `👤 *${row.name}*: RM${row.amount.toFixed(2)}\n`;
+      text += `👤 *${row.name}*: ${symbol}${row.amount.toFixed(2)}\n`;
     });
     window.open(`whatsapp://send?text=${encodeURIComponent(text)}`);
   }
@@ -102,6 +100,12 @@ export default function BillSplitter() {
       <SidebarInset className="bg-[#09090b] text-slate-50 min-h-screen font-sans">
         <header className="flex h-14 shrink-0 items-center justify-between px-6 border-b border-white/5">
           <div className="flex items-center gap-2">
+            {/* ADDED: Back Button */}
+            {step !== 'NAMES' && (
+              <button onClick={() => setStep(step === 'SUMMARY' ? 'REVIEW' : step === 'REVIEW' ? 'SCAN' : 'NAMES')} className="mr-2 opacity-50 hover:opacity-100">
+                <ChevronLeft size={18}/>
+              </button>
+            )}
             <div className="bg-white p-1 rounded">
               <Receipt className="w-3 h-3 text-black" />
             </div>
@@ -164,9 +168,18 @@ export default function BillSplitter() {
                     <p className="text-xs text-slate-500 uppercase tracking-widest">Analyzing for {people.join(", ")}</p>
                   </div>
                   <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                  <Button className="w-full h-14 text-md bg-white text-black font-bold" onClick={() => fileInputRef.current?.click()} disabled={loading}>
-                    {loading ? <Loader2 className="animate-spin mr-2"/> : "Snap Photo"}
-                  </Button>
+                  {/* ADDED: Gallery Input */}
+                  <input type="file" accept="image/*" ref={galleryRef} className="hidden" onChange={handleFileUpload} />
+                  
+                  <div className="flex flex-col gap-2">
+                    <Button className="w-full h-14 text-md bg-white text-black font-bold" onClick={() => fileInputRef.current?.click()} disabled={loading}>
+                      {loading ? <Loader2 className="animate-spin mr-2"/> : "Snap Photo"}
+                    </Button>
+                    {/* ADDED: Gallery Button */}
+                    <Button variant="ghost" className="text-xs text-slate-500 hover:text-white" onClick={() => galleryRef.current?.click()} disabled={loading}>
+                      <ImageIcon size={14} className="mr-2"/> Upload from Gallery
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -183,7 +196,7 @@ export default function BillSplitter() {
                       <TableRow className="border-white/5">
                         <TableHead className="text-[10px] uppercase text-slate-500">Item</TableHead>
                         <TableHead className="text-center text-[10px] uppercase text-slate-500">Qty</TableHead>
-                        <TableHead className="text-right text-[10px] uppercase text-slate-500">Total (RM)</TableHead>
+                        <TableHead className="text-right text-[10px] uppercase text-slate-500">Total ({symbol})</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -191,7 +204,7 @@ export default function BillSplitter() {
                         <TableRow key={i} className="border-white/5 hover:bg-white/[0.02]">
                           <TableCell className="py-4 font-medium text-sm">
                             {item.name}
-                            <div className="text-[10px] text-slate-500 italic">RM{item.unit_price.toFixed(2)} each</div>
+                            <div className="text-[10px] text-slate-500 italic">{symbol}{item.unit_price.toFixed(2)} each</div>
                           </TableCell>
                           <TableCell className="text-center text-sm text-slate-400">x{item.quantity}</TableCell>
                           <TableCell className="text-right font-mono text-white">
@@ -205,7 +218,7 @@ export default function BillSplitter() {
                     <div className="flex items-center justify-between p-4 rounded-xl bg-black border border-white/5">
                       <div className="space-y-0.5">
                         <div className="text-[10px] font-bold uppercase text-slate-500">Apply Tax & Svc</div>
-                        <div className="text-xs text-white opacity-60">RM{items?.tax.toFixed(2)} detected</div>
+                        <div className="text-xs text-white opacity-60">{symbol}{items?.tax.toFixed(2)} detected</div>
                       </div>
                       <Switch checked={includeTax} onCheckedChange={setIncludeTax} />
                     </div>
@@ -237,14 +250,14 @@ export default function BillSplitter() {
                     <TableHeader className="bg-white/[0.02]">
                       <TableRow className="border-white/5">
                         <TableHead className="text-[10px] uppercase font-bold text-slate-500">Name</TableHead>
-                        <TableHead className="text-right text-[10px] uppercase font-bold text-slate-500">Amount</TableHead>
+                        <TableHead className="text-right text-[10px] uppercase font-bold text-slate-500">Amount ({symbol})</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {structuredSplit.map((row, i) => (
                         <TableRow key={i} className="border-white/5">
                           <TableCell className="py-4 font-bold text-sm">{row.name}</TableCell>
-                          <TableCell className="text-right font-mono text-white">RM{row.amount.toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-mono text-white">{symbol}{row.amount.toFixed(2)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
