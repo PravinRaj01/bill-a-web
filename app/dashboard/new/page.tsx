@@ -1,5 +1,4 @@
 "use client";
-import SplashScreen from "@/components/SplashScreen";
 import { useState, useRef, useEffect, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,9 +48,8 @@ function BillSplitterContent() {
   const [instruction, setInstruction] = useState("");
   const [splitResult, setSplitResult] = useState("");
   const [structuredSplit, setStructuredSplit] = useState<SplitRecord[]>([]);
-  const [showReasoning, setShowReasoning] = useState(false); // Restored to false for collapsible behavior
+  const [showReasoning, setShowReasoning] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showSplash, setShowSplash] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [isGuest, setIsGuest] = useState(false);
 
@@ -65,11 +63,7 @@ function BillSplitterContent() {
   const subtotal = items?.items.reduce((sum, item) => sum + item.total_price, 0) || 0;
   const displayedTotal = includeTax ? items?.total || 0 : subtotal;
 
-  useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), 2500);
-    return () => clearTimeout(timer);
-  }, []);
-
+  // Auth Checker
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -79,6 +73,7 @@ function BillSplitterContent() {
     checkUser();
   }, [supabase]);
 
+  // Load names if coming from a Saved Group
   useEffect(() => {
     const groupId = searchParams.get('group_id');
     if (groupId) {
@@ -163,7 +158,6 @@ function BillSplitterContent() {
         setSplitResult(data.result);
 
         if (user) {
-          // Get session count for naming
           const { count } = await supabase
             .from('bill_history')
             .select('*', { count: 'exact', head: true })
@@ -176,7 +170,7 @@ function BillSplitterContent() {
             bill_title: sessionName,
             total_amount: displayedTotal,
             data: parsedResult,
-            reasoning_log: data.result // Storing the log for history
+            reasoning_log: data.result 
           });
         }
         setStep("SUMMARY");
@@ -189,10 +183,8 @@ function BillSplitterContent() {
     setLoading(false);
   };
 
-  if (showSplash) return <SplashScreen />;
-
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full mb-20">
+    <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full mb-20 animate-in fade-in duration-300">
       {step !== "NAMES" && (
         <Button variant="ghost" className="w-fit p-0 h-auto hover:bg-transparent text-slate-500 font-bold uppercase tracking-widest text-[10px]" onClick={() => setStep("NAMES")}>
           <ChevronLeft size={14} className="mr-1" /> Back
@@ -216,7 +208,7 @@ function BillSplitterContent() {
                   onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addPerson()}
                 />
-                <Button onClick={addPerson} disabled={!isCreator || !newName} className="bg-white text-black hover:bg-slate-200">
+                <Button onClick={addPerson} disabled={!isCreator || !newName} className="bg-white text-black hover:bg-zinc-200">
                   <Plus size={18} />
                 </Button>
               </div>
@@ -256,8 +248,6 @@ function BillSplitterContent() {
         </div>
       )}
 
-      {/* ... SCAN and REVIEW steps remain functionally same but with consistent rounded-3xl and text-white on inputs ... */}
-      
       {step === "SCAN" && (
         <div className="space-y-6 animate-in slide-in-from-bottom-4">
           <Card className="bg-[#0c0c0e] border-dashed border border-white/10 py-12 rounded-3xl">
@@ -330,7 +320,6 @@ function BillSplitterContent() {
                 </TableBody>
               </Table>
 
-              {/* RESTORED COLLAPSIBLE MATH LOGS */}
               <div className="border-t border-white/5">
                 <button 
                   onClick={() => setShowReasoning(!showReasoning)}
@@ -345,7 +334,7 @@ function BillSplitterContent() {
                 
                 {showReasoning && (
                   <div className="px-6 pb-6 animate-in slide-in-from-top-2 duration-200">
-                    <div className="p-4 bg-black rounded-xl text-[10px] font-mono text-zinc-500 whitespace-pre-wrap leading-relaxed border border-white/5 max-h-60 overflow-y-auto italic">
+                    <div className="p-4 bg-black rounded-xl text-[10px] font-mono text-zinc-500 whitespace-pre-wrap leading-relaxed border border-white/5 max-h-60 overflow-y-auto italic text-left">
                       {splitResult}
                     </div>
                   </div>
