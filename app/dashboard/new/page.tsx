@@ -1,6 +1,6 @@
 "use client";
 import SplashScreen from "@/components/SplashScreen";
-import { useState, useRef, useEffect, Suspense } from "react"; // Added Suspense
+import { useState, useRef, useEffect, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ import {
   ChevronUp,
   ChevronLeft,
   Image as ImageIcon,
+  ScrollText,
 } from "lucide-react";
 
 interface ReceiptItem { name: string; total_price: number; quantity: number; unit_price: number; }
@@ -35,7 +36,6 @@ type Step = "NAMES" | "SCAN" | "REVIEW" | "SUMMARY";
 
 const API_URL = "https://dizzy-michele-pravinraj-codes-1a321834.koyeb.app";
 
-// --- INNER COMPONENT ---
 function BillSplitterContent() {
   const router = useRouter();
   const searchParams = useSearchParams(); 
@@ -49,13 +49,12 @@ function BillSplitterContent() {
   const [instruction, setInstruction] = useState("");
   const [splitResult, setSplitResult] = useState("");
   const [structuredSplit, setStructuredSplit] = useState<SplitRecord[]>([]);
-  const [showReasoning, setShowReasoning] = useState(false);
+  const [showReasoning, setShowReasoning] = useState(true); // Default to true now
   const [loading, setLoading] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [isGuest, setIsGuest] = useState(false);
 
-  // SAVED GROUPS STATES
   const [saveThisGroup, setSaveThisGroup] = useState(false);
   const [groupName, setGroupName] = useState("");
 
@@ -78,9 +77,8 @@ function BillSplitterContent() {
       else { setIsGuest(true); }
     };
     checkUser();
-  }, []);
+  }, [supabase]);
 
-  // Load names if coming from a Saved Group
   useEffect(() => {
     const groupId = searchParams.get('group_id');
     if (groupId) {
@@ -161,6 +159,7 @@ function BillSplitterContent() {
       if (jsonMatch) {
         const parsedResult = JSON.parse(jsonMatch[0]);
         setStructuredSplit(parsedResult);
+        setSplitResult(data.result);
 
         if (user) {
           await supabase.from('bill_history').insert({
@@ -170,21 +169,23 @@ function BillSplitterContent() {
             data: parsedResult,
           });
         }
+        setStep("SUMMARY"); // Move to summary after successful parse
+      } else {
+        alert("Split failed: AI response format invalid.");
       }
-      
-      setSplitResult(data.result);
-      setStep("SUMMARY");
-    } catch (err) { alert("Split failed"); }
+    } catch (err) { 
+      alert("Split failed: Connection error."); 
+    }
     setLoading(false);
   };
 
   if (showSplash) return <SplashScreen />;
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full">
+    <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full mb-20">
       {step !== "NAMES" && (
         <Button variant="ghost" className="w-fit p-0 h-auto hover:bg-transparent text-slate-500" onClick={() => setStep("NAMES")}>
-          <ChevronLeft size={18} className="mr-1" /> Back to Setup
+          <ChevronLeft size={18} className="mr-1" /> Back
         </Button>
       )}
 
@@ -192,7 +193,7 @@ function BillSplitterContent() {
         <div className="space-y-6 animate-in fade-in duration-500">
           <div className="space-y-1">
             <h2 className="text-xl font-bold tracking-tight">Group Setup</h2>
-            <p className="text-slate-500 text-xs uppercase tracking-widest">Step 1 of 3</p>
+            <p className="text-slate-500 text-xs uppercase tracking-widest font-mono">Step 1 of 3</p>
           </div>
           <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl">
             <CardContent className="pt-6 space-y-4">
@@ -214,7 +215,7 @@ function BillSplitterContent() {
                   <Badge key={p} variant="secondary" className="bg-white/5 py-1.5 px-3 flex gap-2 items-center border-none text-slate-300">
                     {p}
                     {isCreator && (
-                      <button onClick={() => removePerson(p)} className="hover:bg-white/20 rounded-full p-0.5"><X size={12} /></button>
+                      <button onClick={() => removePerson(p)} className="hover:bg-white/20 rounded-full p-0.5 transition-colors"><X size={12} /></button>
                     )}
                   </Badge>
                 ))}
@@ -223,12 +224,12 @@ function BillSplitterContent() {
               {!isGuest && (
                 <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between px-1">
-                    <span className="text-xs text-slate-400 font-medium">Save this group for later?</span>
+                    <span className="text-xs text-slate-400 font-medium">Save this group?</span>
                     <Switch checked={saveThisGroup} onCheckedChange={setSaveThisGroup} />
                   </div>
                   {saveThisGroup && (
                     <Input 
-                      placeholder="Group Name (e.g. Work Buds)" 
+                      placeholder="Group Name (e.g. Couples)" 
                       value={groupName}
                       onChange={(e) => setGroupName(e.target.value)}
                       className="bg-[#141416] border-white/5 h-10 text-xs text-white"
@@ -237,7 +238,7 @@ function BillSplitterContent() {
                 </div>
               )}
 
-              <Button className="w-full h-11 bg-white text-black font-bold" disabled={people.length < 1} onClick={handleStartScanning}>
+              <Button className="w-full h-11 bg-white text-black font-bold uppercase tracking-tighter" disabled={people.length < 1} onClick={handleStartScanning}>
                 Start Scanning
               </Button>
             </CardContent>
@@ -247,7 +248,7 @@ function BillSplitterContent() {
 
       {step === "SCAN" && (
         <div className="space-y-6 animate-in slide-in-from-bottom-4">
-          <Card className="bg-[#0c0c0e] border-dashed border border-white/10 py-12">
+          <Card className="bg-[#0c0c0e] border-dashed border border-white/10 py-12 rounded-2xl">
             <CardContent className="text-center space-y-6">
               <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/10">
                 <Receipt className="w-6 h-6 text-white opacity-40" />
@@ -255,11 +256,11 @@ function BillSplitterContent() {
               <h3 className="text-lg font-bold">Scan Receipt</h3>
               <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
               <input type="file" accept="image/*" ref={galleryRef} className="hidden" onChange={handleFileUpload} />
-              <div className="flex flex-col gap-2">
-                <Button className="w-full h-14 text-md bg-white text-black font-bold" onClick={() => fileInputRef.current?.click()} disabled={loading || !isCreator}>
+              <div className="flex flex-col gap-2 px-4">
+                <Button className="w-full h-14 text-md bg-white text-black font-bold rounded-xl" onClick={() => fileInputRef.current?.click()} disabled={loading || !isCreator}>
                   {loading ? <Loader2 className="animate-spin mr-2" /> : "Snap Photo"}
                 </Button>
-                <Button variant="ghost" className="text-xs text-slate-500" onClick={() => galleryRef.current?.click()} disabled={loading || !isCreator}>
+                <Button variant="ghost" className="text-xs text-slate-500 hover:text-white" onClick={() => galleryRef.current?.click()} disabled={loading || !isCreator}>
                   <ImageIcon size={14} className="mr-2" /> Gallery
                 </Button>
               </div>
@@ -270,22 +271,15 @@ function BillSplitterContent() {
 
       {step === "REVIEW" && (
         <div className="space-y-6">
-          <Card className="bg-[#0c0c0e] border-white/5 overflow-hidden shadow-2xl">
-            <div className="bg-white/5 p-4 border-b border-white/5 text-[10px] font-bold uppercase text-slate-500">Extracted Items</div>
+          <Card className="bg-[#0c0c0e] border-white/5 overflow-hidden shadow-2xl rounded-2xl">
+            <div className="bg-white/5 p-4 border-b border-white/5 text-[10px] font-bold uppercase text-slate-500 tracking-widest">Extracted Items</div>
             <CardContent className="p-0">
               <Table>
-                <TableHeader className="bg-white/5">
-                  <TableRow className="border-white/5">
-                    <TableHead className="text-[10px] uppercase">Item</TableHead>
-                    <TableHead className="text-center text-[10px] uppercase">Qty</TableHead>
-                    <TableHead className="text-right text-[10px] uppercase">Total ({symbol})</TableHead>
-                  </TableRow>
-                </TableHeader>
                 <TableBody>
                   {items?.items.map((item, i) => (
                     <TableRow key={i} className="border-white/5">
-                      <TableCell className="py-4 text-sm font-medium">{item.name}</TableCell>
-                      <TableCell className="text-center text-sm text-slate-400">x{item.quantity}</TableCell>
+                      <TableCell className="py-4 text-sm font-medium text-zinc-200">{item.name}</TableCell>
+                      <TableCell className="text-center text-sm text-slate-500">x{item.quantity}</TableCell>
                       <TableCell className="text-right font-mono text-white">{item.total_price.toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
@@ -293,11 +287,11 @@ function BillSplitterContent() {
               </Table>
               <div className="p-6 space-y-4">
                 <div className="flex items-center justify-between p-4 rounded-xl bg-black border border-white/5">
-                  <div className="text-xs text-white opacity-60">Apply Tax & Svc ({symbol}{items?.tax.toFixed(2)})</div>
+                  <div className="text-xs text-white opacity-60 font-mono">Apply Tax & Svc ({symbol}{items?.tax.toFixed(2)})</div>
                   <Switch checked={includeTax} onCheckedChange={setIncludeTax} disabled={!isCreator} />
                 </div>
                 <Input disabled={!isCreator} placeholder="Instructions (e.g. Split equally)" value={instruction} onChange={(e) => setInstruction(e.target.value)} className="bg-black border-white/5 h-12 text-white" />
-                <Button className="w-full h-12 bg-white text-black font-bold" onClick={handleSplit} disabled={loading || !isCreator}>
+                <Button className="w-full h-12 bg-white text-black font-bold uppercase tracking-tight rounded-xl" onClick={handleSplit} disabled={loading || !isCreator}>
                   {loading ? <Loader2 className="animate-spin" /> : "Split Bill"}
                 </Button>
               </div>
@@ -307,38 +301,44 @@ function BillSplitterContent() {
       )}
 
       {step === "SUMMARY" && (
-        <div className="space-y-6">
-          {isGuest && (
-            <div className="bg-white/5 border border-white/10 rounded-lg p-3 flex justify-between items-center text-[10px]">
-              <p className="text-slate-400">Want to save this bill?</p>
-              <Button variant="link" className="text-white underline p-0 h-auto" onClick={() => router.push("/")}>Login Now</Button>
-            </div>
-          )}
-          <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl overflow-hidden ring-1 ring-white/10">
+        <div className="space-y-6 animate-in zoom-in-95 duration-300">
+          <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl overflow-hidden ring-1 ring-white/10 rounded-3xl">
             <CardHeader className="text-center border-b border-white/5 py-4">
-              <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Final Split</CardTitle>
+              <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Final Settlement</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableBody>
                   {structuredSplit.map((row, i) => (
                     <TableRow key={i} className="border-white/5">
-                      <TableCell className="py-4 font-bold text-sm text-white">{row.name}</TableCell>
-                      <TableCell className="text-right font-mono text-white">{symbol}{row.amount.toFixed(2)}</TableCell>
+                      <TableCell className="py-4 font-bold text-sm text-white px-6">{row.name}</TableCell>
+                      <TableCell className="text-right font-mono text-white text-lg px-6">{symbol}{row.amount.toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-              <div className="p-6 space-y-4">
-                <Button className="w-full h-12 bg-[#25D366] text-black font-black" onClick={() => {
+
+              {/* MATH LOGS SECTION - NOW MORE PROMINENT */}
+              <div className="px-6 py-4 border-t border-white/5">
+                <div className="flex items-center gap-2 mb-2">
+                  <ScrollText size={14} className="text-zinc-500" />
+                  <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-tighter">AI Reasoning Logs</span>
+                </div>
+                <div className="p-4 bg-black rounded-xl text-[10px] font-mono text-zinc-500 whitespace-pre-wrap leading-relaxed border border-white/5 max-h-40 overflow-y-auto">
+                  {splitResult}
+                </div>
+              </div>
+
+              <div className="p-6 space-y-3">
+                <Button className="w-full h-12 bg-[#25D366] text-black font-black rounded-xl" onClick={() => {
                   let text = `*Bill-a Summary (${symbol})*\n\n`;
                   structuredSplit.forEach(r => text += `👤 *${r.name}*: ${symbol}${r.amount.toFixed(2)}\n`);
                   window.open(`whatsapp://send?text=${encodeURIComponent(text)}`);
                 }}>
-                  <Share2 className="w-4 h-4 mr-2" /> Share WhatsApp
+                  <Share2 className="w-4 h-4 mr-2" /> Share via WhatsApp
                 </Button>
-                <Button variant="outline" className="w-full h-12 border-white/5 text-zinc-400" onClick={() => router.push("/dashboard")}>
-                  Finish & Close
+                <Button variant="outline" className="w-full h-12 border-white/5 text-zinc-500 font-bold rounded-xl" onClick={() => router.push("/dashboard")}>
+                  Finish Session
                 </Button>
               </div>
             </CardContent>
@@ -349,7 +349,6 @@ function BillSplitterContent() {
   );
 }
 
-// --- MAIN EXPORT WITH SUSPENSE ---
 export default function BillSplitter() {
   return (
     <Suspense fallback={
