@@ -1,6 +1,6 @@
 "use client";
 import SplashScreen from "@/components/SplashScreen";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react"; // Added Suspense
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { createClient } from "@/utils/supabase/client"; 
-import { useRouter, useSearchParams } from "next/navigation"; // Added useSearchParams
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Loader2,
   Plus,
@@ -35,10 +35,12 @@ type Step = "NAMES" | "SCAN" | "REVIEW" | "SUMMARY";
 
 const API_URL = "https://dizzy-michele-pravinraj-codes-1a321834.koyeb.app";
 
-export default function BillSplitter() {
+// --- INNER COMPONENT ---
+function BillSplitterContent() {
   const router = useRouter();
-  const searchParams = useSearchParams(); // To detect group_id
+  const searchParams = useSearchParams(); 
   const supabase = createClient();
+  
   const [step, setStep] = useState<Step>("NAMES");
   const [people, setPeople] = useState<string[]>([]);
   const [newName, setNewName] = useState("");
@@ -53,12 +55,11 @@ export default function BillSplitter() {
   const [user, setUser] = useState<any>(null);
   const [isGuest, setIsGuest] = useState(false);
 
-  // NEW STATES FOR SAVING GROUPS
+  // SAVED GROUPS STATES
   const [saveThisGroup, setSaveThisGroup] = useState(false);
   const [groupName, setGroupName] = useState("");
 
   const isCreator = true; 
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
@@ -79,7 +80,7 @@ export default function BillSplitter() {
     checkUser();
   }, []);
 
-  // NEW: Load names if coming from a Saved Group
+  // Load names if coming from a Saved Group
   useEffect(() => {
     const groupId = searchParams.get('group_id');
     if (groupId) {
@@ -92,7 +93,7 @@ export default function BillSplitter() {
       };
       loadGroup();
     }
-  }, [searchParams]);
+  }, [searchParams, supabase]);
 
   const symbol = items?.currency || "RM";
 
@@ -198,7 +199,7 @@ export default function BillSplitter() {
               <div className="flex gap-2">
                 <Input
                   disabled={!isCreator}
-                  className="bg-[#141416] border-white/5 focus:ring-1 ring-white/20 h-11"
+                  className="bg-[#141416] border-white/5 focus:ring-1 ring-white/20 h-11 text-white"
                   placeholder="Enter name..."
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
@@ -219,7 +220,6 @@ export default function BillSplitter() {
                 ))}
               </div>
 
-              {/* SAVE GROUP TOGGLE */}
               {!isGuest && (
                 <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between px-1">
@@ -231,7 +231,7 @@ export default function BillSplitter() {
                       placeholder="Group Name (e.g. Work Buds)" 
                       value={groupName}
                       onChange={(e) => setGroupName(e.target.value)}
-                      className="bg-[#141416] border-white/5 h-10 text-xs"
+                      className="bg-[#141416] border-white/5 h-10 text-xs text-white"
                     />
                   )}
                 </div>
@@ -296,7 +296,7 @@ export default function BillSplitter() {
                   <div className="text-xs text-white opacity-60">Apply Tax & Svc ({symbol}{items?.tax.toFixed(2)})</div>
                   <Switch checked={includeTax} onCheckedChange={setIncludeTax} disabled={!isCreator} />
                 </div>
-                <Input disabled={!isCreator} placeholder="Instructions (e.g. Split equally)" value={instruction} onChange={(e) => setInstruction(e.target.value)} className="bg-black border-white/5 h-12" />
+                <Input disabled={!isCreator} placeholder="Instructions (e.g. Split equally)" value={instruction} onChange={(e) => setInstruction(e.target.value)} className="bg-black border-white/5 h-12 text-white" />
                 <Button className="w-full h-12 bg-white text-black font-bold" onClick={handleSplit} disabled={loading || !isCreator}>
                   {loading ? <Loader2 className="animate-spin" /> : "Split Bill"}
                 </Button>
@@ -323,7 +323,7 @@ export default function BillSplitter() {
                 <TableBody>
                   {structuredSplit.map((row, i) => (
                     <TableRow key={i} className="border-white/5">
-                      <TableCell className="py-4 font-bold text-sm">{row.name}</TableCell>
+                      <TableCell className="py-4 font-bold text-sm text-white">{row.name}</TableCell>
                       <TableCell className="text-right font-mono text-white">{symbol}{row.amount.toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
@@ -346,5 +346,18 @@ export default function BillSplitter() {
         </div>
       )}
     </main>
+  );
+}
+
+// --- MAIN EXPORT WITH SUSPENSE ---
+export default function BillSplitter() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-black">
+        <Loader2 className="animate-spin w-8 h-8 text-white opacity-20" />
+      </div>
+    }>
+      <BillSplitterContent />
+    </Suspense>
   );
 }
