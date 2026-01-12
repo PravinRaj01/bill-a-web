@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bill.a
+
+An AI-powered bill splitting and receipt management application built with Next.js, TypeScript, and Supabase. Bill.a simplifies group expenses by using OCR and LLMs to accurately split complex receipts, taxes, and service charges.
+
+🔗 Live App: https://billa-rho.vercel.app/
+
+## Features
+
+### Core Functionality
+- **AI Receipt Scanning**: Instant OCR extraction of items, quantities, and prices from receipt photos.
+- **Smart Tax Handling**: Dynamic toggle for Tax & Service Charges with real-time grand total updates.
+- **Natural Language Splitting**: Instruct the AI in plain English (e.g., "Pravin pays for the drinks, split the rest equally").
+- **Guest Access**: Full calculator functionality available without requiring an account.
+- **WhatsApp Integration**: One-tap sharing of formatted settlement summaries to group chats.
+
+### User Features (Authenticated)
+- **Session History**: Persistent storage of past split sessions with detailed breakdowns.
+- **Saved Groups**: Save frequently used groups of friends to skip name entry.
+- **Continue Session**: Re-open past sessions to add new receipts to the same group of people.
+- **Session Naming**: Automatic and custom naming logic for organized history tracking (Session 1...n).
+
+### Interactive Management
+- **Bulk History Actions**: Selection mode to delete individual, multiple, or all history records.
+- **System Reasoning Log**: Transparent view of the AI's math and logic for every split.
+
+## Tech Stack
+
+- **Frontend**: Next.js 15 (App Router), TypeScript
+- **Styling**: Tailwind CSS, shadcn/ui components
+- **Database & Auth**: Supabase (PostgreSQL, Auth)
+- **Backend API**: Python FastAPI (Deployed on Koyeb)
+- **Icons**: Lucide React
+- **Deployment**: Vercel
+
+## Project Structure
+
+src/
+├── app/                # Next.js App Router (Pages, Layouts, Actions)
+├── components/         # Reusable UI components
+│   ├── ui/             # shadcn/ui primitives (Radix UI)
+│   └── history/        # History list and selection logic
+├── integrations/       # Supabase client and API definitions
+├── utils/              # Helper functions and formatting
+└── types/              # TypeScript type definitions
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js 18+
+- npm / pnpm / bun
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### Local Development
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. Clone the repository:
+   git clone https://github.com/PravinRaj01/bill-a-web.git
+   cd bill-a-web
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+2. Install dependencies:
+   npm install
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. Set up environment variables (.env.local):
+   NEXT_PUBLIC_SUPABASE_URL=your_project_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 
-## Learn More
+4. Run the development server:
+   npm run dev
 
-To learn more about Next.js, take a look at the following resources:
+## License
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+This project is licensed under the MIT License.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+Built with ❤️ by PravinRaj
