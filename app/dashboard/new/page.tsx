@@ -49,7 +49,7 @@ function BillSplitterContent() {
   const [instruction, setInstruction] = useState("");
   const [splitResult, setSplitResult] = useState("");
   const [structuredSplit, setStructuredSplit] = useState<SplitRecord[]>([]);
-  const [showReasoning, setShowReasoning] = useState(true); // Default to true now
+  const [showReasoning, setShowReasoning] = useState(false); // Restored to false for collapsible behavior
   const [loading, setLoading] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -153,6 +153,7 @@ function BillSplitterContent() {
           apply_tax: includeTax,
         }),
       });
+      
       const data = await res.json();
       const jsonMatch = data.result.match(/\[[\s\S]*\]/);
       
@@ -162,14 +163,23 @@ function BillSplitterContent() {
         setSplitResult(data.result);
 
         if (user) {
+          // Get session count for naming
+          const { count } = await supabase
+            .from('bill_history')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id);
+          
+          const sessionName = groupName || instruction || `Session ${(count || 0) + 1}`;
+
           await supabase.from('bill_history').insert({
             user_id: user.id,
-            bill_title: groupName || instruction || "New Split",
+            bill_title: sessionName,
             total_amount: displayedTotal,
             data: parsedResult,
+            reasoning_log: data.result // Storing the log for history
           });
         }
-        setStep("SUMMARY"); // Move to summary after successful parse
+        setStep("SUMMARY");
       } else {
         alert("Split failed: AI response format invalid.");
       }
@@ -184,8 +194,8 @@ function BillSplitterContent() {
   return (
     <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full mb-20">
       {step !== "NAMES" && (
-        <Button variant="ghost" className="w-fit p-0 h-auto hover:bg-transparent text-slate-500" onClick={() => setStep("NAMES")}>
-          <ChevronLeft size={18} className="mr-1" /> Back
+        <Button variant="ghost" className="w-fit p-0 h-auto hover:bg-transparent text-slate-500 font-bold uppercase tracking-widest text-[10px]" onClick={() => setStep("NAMES")}>
+          <ChevronLeft size={14} className="mr-1" /> Back
         </Button>
       )}
 
@@ -195,7 +205,7 @@ function BillSplitterContent() {
             <h2 className="text-xl font-bold tracking-tight">Group Setup</h2>
             <p className="text-slate-500 text-xs uppercase tracking-widest font-mono">Step 1 of 3</p>
           </div>
-          <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl">
+          <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl rounded-3xl">
             <CardContent className="pt-6 space-y-4">
               <div className="flex gap-2">
                 <Input
@@ -224,12 +234,12 @@ function BillSplitterContent() {
               {!isGuest && (
                 <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between px-1">
-                    <span className="text-xs text-slate-400 font-medium">Save this group?</span>
+                    <span className="text-xs text-slate-400 font-medium tracking-tight">Save this group?</span>
                     <Switch checked={saveThisGroup} onCheckedChange={setSaveThisGroup} />
                   </div>
                   {saveThisGroup && (
                     <Input 
-                      placeholder="Group Name (e.g. Couples)" 
+                      placeholder="Group Name (e.g. Weekend Crew)" 
                       value={groupName}
                       onChange={(e) => setGroupName(e.target.value)}
                       className="bg-[#141416] border-white/5 h-10 text-xs text-white"
@@ -238,7 +248,7 @@ function BillSplitterContent() {
                 </div>
               )}
 
-              <Button className="w-full h-11 bg-white text-black font-bold uppercase tracking-tighter" disabled={people.length < 1} onClick={handleStartScanning}>
+              <Button className="w-full h-12 bg-white text-black font-black uppercase tracking-tighter rounded-xl" disabled={people.length < 1} onClick={handleStartScanning}>
                 Start Scanning
               </Button>
             </CardContent>
@@ -246,21 +256,23 @@ function BillSplitterContent() {
         </div>
       )}
 
+      {/* ... SCAN and REVIEW steps remain functionally same but with consistent rounded-3xl and text-white on inputs ... */}
+      
       {step === "SCAN" && (
         <div className="space-y-6 animate-in slide-in-from-bottom-4">
-          <Card className="bg-[#0c0c0e] border-dashed border border-white/10 py-12 rounded-2xl">
+          <Card className="bg-[#0c0c0e] border-dashed border border-white/10 py-12 rounded-3xl">
             <CardContent className="text-center space-y-6">
               <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/10">
                 <Receipt className="w-6 h-6 text-white opacity-40" />
               </div>
-              <h3 className="text-lg font-bold">Scan Receipt</h3>
+              <h3 className="text-lg font-bold uppercase tracking-tighter">Scan Receipt</h3>
               <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
               <input type="file" accept="image/*" ref={galleryRef} className="hidden" onChange={handleFileUpload} />
               <div className="flex flex-col gap-2 px-4">
                 <Button className="w-full h-14 text-md bg-white text-black font-bold rounded-xl" onClick={() => fileInputRef.current?.click()} disabled={loading || !isCreator}>
                   {loading ? <Loader2 className="animate-spin mr-2" /> : "Snap Photo"}
                 </Button>
-                <Button variant="ghost" className="text-xs text-slate-500 hover:text-white" onClick={() => galleryRef.current?.click()} disabled={loading || !isCreator}>
+                <Button variant="ghost" className="text-xs text-slate-500 hover:text-white uppercase font-bold tracking-widest" onClick={() => galleryRef.current?.click()} disabled={loading || !isCreator}>
                   <ImageIcon size={14} className="mr-2" /> Gallery
                 </Button>
               </div>
@@ -271,7 +283,7 @@ function BillSplitterContent() {
 
       {step === "REVIEW" && (
         <div className="space-y-6">
-          <Card className="bg-[#0c0c0e] border-white/5 overflow-hidden shadow-2xl rounded-2xl">
+          <Card className="bg-[#0c0c0e] border-white/5 overflow-hidden shadow-2xl rounded-3xl">
             <div className="bg-white/5 p-4 border-b border-white/5 text-[10px] font-bold uppercase text-slate-500 tracking-widest">Extracted Items</div>
             <CardContent className="p-0">
               <Table>
@@ -287,11 +299,11 @@ function BillSplitterContent() {
               </Table>
               <div className="p-6 space-y-4">
                 <div className="flex items-center justify-between p-4 rounded-xl bg-black border border-white/5">
-                  <div className="text-xs text-white opacity-60 font-mono">Apply Tax & Svc ({symbol}{items?.tax.toFixed(2)})</div>
+                  <div className="text-xs text-white opacity-60 font-mono tracking-tighter">Apply Tax & Svc ({symbol}{items?.tax.toFixed(2)})</div>
                   <Switch checked={includeTax} onCheckedChange={setIncludeTax} disabled={!isCreator} />
                 </div>
                 <Input disabled={!isCreator} placeholder="Instructions (e.g. Split equally)" value={instruction} onChange={(e) => setInstruction(e.target.value)} className="bg-black border-white/5 h-12 text-white" />
-                <Button className="w-full h-12 bg-white text-black font-bold uppercase tracking-tight rounded-xl" onClick={handleSplit} disabled={loading || !isCreator}>
+                <Button className="w-full h-12 bg-white text-black font-black uppercase tracking-tight rounded-xl" onClick={handleSplit} disabled={loading || !isCreator}>
                   {loading ? <Loader2 className="animate-spin" /> : "Split Bill"}
                 </Button>
               </div>
@@ -303,41 +315,52 @@ function BillSplitterContent() {
       {step === "SUMMARY" && (
         <div className="space-y-6 animate-in zoom-in-95 duration-300">
           <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl overflow-hidden ring-1 ring-white/10 rounded-3xl">
-            <CardHeader className="text-center border-b border-white/5 py-4">
-              <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Final Settlement</CardTitle>
+            <CardHeader className="text-center border-b border-white/5 py-4 bg-white/[0.02]">
+              <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em]">Final Settlement</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableBody>
                   {structuredSplit.map((row, i) => (
                     <TableRow key={i} className="border-white/5">
-                      <TableCell className="py-4 font-bold text-sm text-white px-6">{row.name}</TableCell>
-                      <TableCell className="text-right font-mono text-white text-lg px-6">{symbol}{row.amount.toFixed(2)}</TableCell>
+                      <TableCell className="py-5 font-bold text-sm text-white px-8">{row.name}</TableCell>
+                      <TableCell className="text-right font-mono text-white text-xl px-8">{symbol}{row.amount.toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
 
-              {/* MATH LOGS SECTION - NOW MORE PROMINENT */}
-              <div className="px-6 py-4 border-t border-white/5">
-                <div className="flex items-center gap-2 mb-2">
-                  <ScrollText size={14} className="text-zinc-500" />
-                  <span className="text-[10px] font-bold uppercase text-zinc-500 tracking-tighter">AI Reasoning Logs</span>
-                </div>
-                <div className="p-4 bg-black rounded-xl text-[10px] font-mono text-zinc-500 whitespace-pre-wrap leading-relaxed border border-white/5 max-h-40 overflow-y-auto">
-                  {splitResult}
-                </div>
+              {/* RESTORED COLLAPSIBLE MATH LOGS */}
+              <div className="border-t border-white/5">
+                <button 
+                  onClick={() => setShowReasoning(!showReasoning)}
+                  className="w-full p-4 flex justify-between items-center text-[10px] font-bold text-zinc-500 hover:bg-white/5 transition-colors uppercase tracking-widest"
+                >
+                  <div className="flex items-center gap-2">
+                    <ScrollText size={14} />
+                    System Reasoning Log
+                  </div>
+                  {showReasoning ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+                
+                {showReasoning && (
+                  <div className="px-6 pb-6 animate-in slide-in-from-top-2 duration-200">
+                    <div className="p-4 bg-black rounded-xl text-[10px] font-mono text-zinc-500 whitespace-pre-wrap leading-relaxed border border-white/5 max-h-60 overflow-y-auto italic">
+                      {splitResult}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="p-6 space-y-3">
-                <Button className="w-full h-12 bg-[#25D366] text-black font-black rounded-xl" onClick={() => {
+                <Button className="w-full h-12 bg-[#25D366] text-black font-black rounded-xl uppercase tracking-tighter" onClick={() => {
                   let text = `*Bill-a Summary (${symbol})*\n\n`;
                   structuredSplit.forEach(r => text += `👤 *${r.name}*: ${symbol}${r.amount.toFixed(2)}\n`);
                   window.open(`whatsapp://send?text=${encodeURIComponent(text)}`);
                 }}>
                   <Share2 className="w-4 h-4 mr-2" /> Share via WhatsApp
                 </Button>
-                <Button variant="outline" className="w-full h-12 border-white/5 text-zinc-500 font-bold rounded-xl" onClick={() => router.push("/dashboard")}>
+                <Button variant="outline" className="w-full h-12 border-white/5 text-zinc-500 font-bold rounded-xl uppercase tracking-widest text-[10px]" onClick={() => router.push("/dashboard")}>
                   Finish Session
                 </Button>
               </div>
