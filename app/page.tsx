@@ -1,6 +1,6 @@
 "use client"
 import SplashScreen from "@/components/SplashScreen"
-import { useState, useRef, useEffect } from 'react' // ADDED: useEffect
+import { useState, useRef, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from "@/components/ui/table"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { supabase } from '@/lib/supabase' // IMPORT SUPABASE
+import { useRouter } from 'next/navigation' // IMPORT ROUTER
 import { 
   Loader2, Plus, Receipt, Share2, 
   X, ChevronDown, ChevronUp, ChevronLeft, Image as ImageIcon 
@@ -21,6 +23,7 @@ type Step = 'NAMES' | 'SCAN' | 'REVIEW' | 'SUMMARY'
 const API_URL = "https://dizzy-michele-pravinraj-codes-1a321834.koyeb.app"
 
 export default function BillSplitter() {
+  const router = useRouter()
   const [step, setStep] = useState<Step>('NAMES')
   const [people, setPeople] = useState<string[]>([])
   const [newName, setNewName] = useState("")
@@ -31,20 +34,47 @@ export default function BillSplitter() {
   const [structuredSplit, setStructuredSplit] = useState<SplitRecord[]>([])
   const [showReasoning, setShowReasoning] = useState(false)
   const [loading, setLoading] = useState(false)
-  
-  
-  // ADDED: Splash Screen State
   const [showSplash, setShowSplash] = useState(true)
+  
+  // NEW: Auth States
+  const [user, setUser] = useState<any>(null)
+  const [isGuest, setIsGuest] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
 
   const subtotal = items?.items.reduce((sum, item) => sum + item.total_price, 0) || 0;
   const displayedTotal = includeTax ? (items?.total || 0) : subtotal;
-  // ADDED: Splash Screen Timer
+
+  // Splash Screen Timer
   useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), 2500) // Shows for 2.5 seconds
+    const timer = setTimeout(() => setShowSplash(false), 2500)
     return () => clearTimeout(timer)
+  }, [])
+
+  // NEW: Auth Checker
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        setUser(session.user)
+        setIsGuest(false)
+      } else {
+        setIsGuest(true)
+      }
+    }
+    checkUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setUser(session.user)
+        setIsGuest(false)
+      } else {
+        setUser(null)
+        setIsGuest(true)
+      }
+    })
+    return () => subscription.unsubscribe()
   }, [])
 
   const symbol = items?.currency || "RM";
@@ -62,29 +92,42 @@ export default function BillSplitter() {
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-  if (!e.target.files?.[0]) return
-  setLoading(true)
-  const formData = new FormData()
-  formData.append("file", e.target.files[0])
-  
-  try {
-    const res = await fetch(`${API_URL}/scan`, { method: "POST", body: formData })
-    const data = await res.json()
+    if (!e.target.files?.[0]) return
+    setLoading(true)
+    const formData = new FormData()
+    formData.append("file", e.target.files[0])
     
-    // Check if the data is valid
-    if (!data.items || data.items.length === 0) {
-      alert("Oops! No items detected. Please make sure you're scanning a clear receipt.")
-      setLoading(false)
-      return
+    try {
+      const res = await fetch(`${API_URL}/scan`, { method: "POST", body: formData })
+      const data = await res.json()
+      
+      if (!data.items || data.items.length === 0) {
+        alert("Oops! No items detected. Please make sure you're scanning a clear receipt.")
+        setLoading(false)
+        return
+      }
+      
+      // NEW: Save to Supabase (Guest or User)
+      const { error } = await supabase
+        .from('sessions')
+        .insert([
+          { 
+            host_id: user?.id || null, 
+            raw_receipt_data: data,
+            currency: data.currency,
+            status: 'active'
+          }
+        ])
+
+      if (error) console.error("Database save failed, continuing locally.")
+
+      setItems(data)
+      setStep('REVIEW')
+    } catch (err) { 
+      alert("Connection error. The 'Brain' might be waking up—try again in a second!") 
     }
-    
-    setItems(data)
-    setStep('REVIEW')
-  } catch (err) { 
-    alert("Connection error. The 'Brain' might be waking up—try again in a second!") 
+    setLoading(false)
   }
-  setLoading(false)
-}
 
   const handleSplit = async () => {
     setLoading(true)
@@ -121,11 +164,9 @@ export default function BillSplitter() {
   }
 
   useEffect(() => {
-  // This "pings" the server immediately on load to end Deep Sleep early
-  fetch(API_URL).catch(() => {}); 
-}, []);
+    fetch(API_URL).catch(() => {}); 
+  }, []);
 
-  // ADDED: Early return for Splash Screen
   if (showSplash) {
     return <SplashScreen />
   }
@@ -140,7 +181,6 @@ export default function BillSplitter() {
                 <ChevronLeft size={18}/>
               </button>
             )}
-            {/* REPLACED WITH YOUR LOGO */}
             <div className="bg-white p-0.5 rounded shadow-sm">
               <img src="/icon.png" alt="logo" className="w-4 h-4 object-contain" />
             </div>
@@ -150,7 +190,7 @@ export default function BillSplitter() {
         </header>
 
         <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full">
-          
+          {/* STEP 1: NAMES */}
           {step === 'NAMES' && (
             <div className="space-y-6 animate-in fade-in duration-500">
               <div className="space-y-1">
@@ -173,10 +213,7 @@ export default function BillSplitter() {
                     {people.map((p) => (
                       <Badge key={p} variant="secondary" className="bg-white/5 hover:bg-white/10 py-1.5 px-3 flex gap-2 items-center border-none text-slate-300">
                         {p} 
-                        <button 
-                          onClick={(e) => { e.preventDefault(); removePerson(p); }}
-                          className="hover:bg-white/20 rounded-full p-0.5 transition-colors"
-                        >
+                        <button onClick={(e) => { e.preventDefault(); removePerson(p); }} className="hover:bg-white/20 rounded-full p-0.5 transition-colors">
                           <X size={12}/>
                         </button>
                       </Badge>
@@ -191,6 +228,7 @@ export default function BillSplitter() {
             </div>
           )}
 
+          {/* STEP 2: SCAN */}
           {step === 'SCAN' && (
             <div className="space-y-6 animate-in slide-in-from-bottom-4">
               <Card className="bg-[#0c0c0e] border-dashed border border-white/10 py-12">
@@ -218,6 +256,7 @@ export default function BillSplitter() {
             </div>
           )}
 
+          {/* STEP 3: REVIEW */}
           {step === 'REVIEW' && (
             <div className="space-y-6">
               <Card className="bg-[#0c0c0e] border-white/5 overflow-hidden shadow-2xl">
@@ -248,7 +287,6 @@ export default function BillSplitter() {
                   </Table>
 
                   <div className="p-6 space-y-6">
-                    {/* NEW: DYNAMIC TOTAL SHOWCASE */}
                     <div className="bg-black/40 border border-white/5 rounded-xl p-4 flex justify-between items-end">
                       <div className="space-y-1">
                         <div className="text-[10px] font-bold uppercase text-slate-500 tracking-widest">Grand Total</div>
@@ -272,12 +310,7 @@ export default function BillSplitter() {
                     </div>
 
                     <div className="space-y-3">
-                      <Input 
-                        placeholder="Assign items? (e.g. Lim had the burger)" 
-                        value={instruction} 
-                        onChange={(e) => setInstruction(e.target.value)} 
-                        className="bg-black border-white/5 h-12 text-sm" 
-                      />
+                      <Input placeholder="Assign items? (e.g. Lim had the burger)" value={instruction} onChange={(e) => setInstruction(e.target.value)} className="bg-black border-white/5 h-12 text-sm" />
                       <Button className="w-full h-12 bg-white text-black font-bold" onClick={handleSplit} disabled={loading}>
                         {loading ? <Loader2 className="animate-spin mr-2"/> : "Split Bill"}
                       </Button>
@@ -288,8 +321,19 @@ export default function BillSplitter() {
             </div>
           )}
 
+          {/* STEP 4: SUMMARY */}
           {step === 'SUMMARY' && (
             <div className="space-y-6">
+              {/* NEW: Guest Banner */}
+              {isGuest && (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-3 flex justify-between items-center animate-in fade-in slide-in-from-top-2">
+                  <p className="text-[10px] text-slate-400">Want to save this bill to your history?</p>
+                  <Button variant="link" className="text-[10px] text-white underline p-0 h-auto" onClick={() => router.push('/login')}>
+                    Login Now
+                  </Button>
+                </div>
+              )}
+
               <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl overflow-hidden ring-1 ring-white/10">
                 <CardHeader className="text-center border-b border-white/5 py-4">
                   <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em]">Final Split</CardTitle>
@@ -323,7 +367,6 @@ export default function BillSplitter() {
                         </div>
                       )}
                     </div>
-
                     <div className="flex gap-2">
                       <Button className="flex-1 h-12 bg-[#25D366] hover:bg-[#20bd5a] text-black font-black" onClick={handleWhatsAppShare}>
                         <Share2 className="w-4 h-4 mr-2"/> Share WhatsApp
