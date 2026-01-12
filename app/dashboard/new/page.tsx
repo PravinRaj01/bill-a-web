@@ -73,10 +73,15 @@ function BillSplitterContent() {
     checkUser();
   }, [supabase]);
 
-  // Load names if coming from a Saved Group
+  // NEW: Load names from URL (Continue Session) or Saved Group
   useEffect(() => {
+    const namesParam = searchParams.get('names');
     const groupId = searchParams.get('group_id');
-    if (groupId) {
+
+    if (namesParam) {
+      const loadedNames = decodeURIComponent(namesParam).split(',');
+      setPeople(loadedNames);
+    } else if (groupId) {
       const loadGroup = async () => {
         const { data } = await supabase.from('saved_groups').select('names, group_name').eq('id', groupId).single();
         if (data) {
@@ -158,22 +163,19 @@ function BillSplitterContent() {
         setSplitResult(data.result);
 
         if (user) {
-          // 1. Get current session count for naming
           const { count } = await supabase
             .from('bill_history')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id);
           
-          // 2. Logic: Group Name > Custom Instruction > Session N
           const sessionName = groupName || instruction || `Session ${(count || 0) + 1}`;
 
-          // 3. Insert into DB
           await supabase.from('bill_history').insert({
             user_id: user.id,
             bill_title: sessionName,
             total_amount: displayedTotal,
             data: parsedResult,
-            reasoning_log: data.result // Save the log for history retrieval
+            reasoning_log: data.result 
           });
         }
         setStep("SUMMARY");
@@ -197,7 +199,7 @@ function BillSplitterContent() {
       {step === "NAMES" && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <div className="space-y-1">
-            <h2 className="text-xl font-bold tracking-tight">Group Setup</h2>
+            <h2 className="text-xl font-bold tracking-tight text-white">Group Setup</h2>
             <p className="text-slate-500 text-xs uppercase tracking-widest font-mono">Step 1 of 3</p>
           </div>
           <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl rounded-3xl">
@@ -258,7 +260,7 @@ function BillSplitterContent() {
               <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/10">
                 <Receipt className="w-6 h-6 text-white opacity-40" />
               </div>
-              <h3 className="text-lg font-bold uppercase tracking-tighter">Scan Receipt</h3>
+              <h3 className="text-lg font-bold uppercase tracking-tighter text-white">Scan Receipt</h3>
               <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
               <input type="file" accept="image/*" ref={galleryRef} className="hidden" onChange={handleFileUpload} />
               <div className="flex flex-col gap-2 px-4">
