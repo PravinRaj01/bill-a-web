@@ -84,7 +84,7 @@ export default function AuthPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="password" name="password" className="text-zinc-400 ml-1">Password</Label>
+              <Label htmlFor="password" className="text-zinc-400 ml-1">Password</Label>
               <Input 
                 id="password" 
                 name="password" 

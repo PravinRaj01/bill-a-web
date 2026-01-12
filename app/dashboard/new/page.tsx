@@ -149,6 +149,7 @@ function BillSplitterContent() {
         }),
       });
       
+      
       const data = await res.json();
       const jsonMatch = data.result.match(/\[[\s\S]*\]/);
       
