@@ -67,13 +67,17 @@ function BillSplitterContent() {
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) { setUser(session.user); setIsGuest(false); } 
-      else { setIsGuest(true); }
+      if (session) { 
+        setUser(session.user); 
+        setIsGuest(false); 
+      } else { 
+        setIsGuest(true); 
+      }
     };
     checkUser();
   }, [supabase]);
 
-  // NEW: Load names from URL (Continue Session) or Saved Group
+  // Load names from URL (Continue Session) or Saved Group
   useEffect(() => {
     const namesParam = searchParams.get('names');
     const groupId = searchParams.get('group_id');
@@ -162,13 +166,16 @@ function BillSplitterContent() {
         setStructuredSplit(parsedResult);
         setSplitResult(data.result);
 
+        // --- IMPROVED NAMING & GUEST LOGIC ---
         if (user) {
-          const { count } = await supabase
+          // Get session count for naming
+          const { data: userBills } = await supabase
             .from('bill_history')
-            .select('*', { count: 'exact', head: true })
+            .select('id')
             .eq('user_id', user.id);
           
-          const sessionName = groupName || instruction || `Session ${(count || 0) + 1}`;
+          const sessionNum = (userBills?.length || 0) + 1;
+          const sessionName = groupName || instruction || `Session ${sessionNum}`;
 
           await supabase.from('bill_history').insert({
             user_id: user.id,
@@ -178,6 +185,7 @@ function BillSplitterContent() {
             reasoning_log: data.result 
           });
         }
+        // Move to summary regardless of guest/user status
         setStep("SUMMARY");
       } else {
         alert("Split failed: AI response format invalid.");
@@ -199,7 +207,7 @@ function BillSplitterContent() {
       {step === "NAMES" && (
         <div className="space-y-6 animate-in fade-in duration-500">
           <div className="space-y-1">
-            <h2 className="text-xl font-bold tracking-tight text-white">Group Setup</h2>
+            <h2 className="text-xl font-bold tracking-tight text-white italic">Group Setup</h2>
             <p className="text-slate-500 text-xs uppercase tracking-widest font-mono">Step 1 of 3</p>
           </div>
           <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl rounded-3xl">

@@ -16,9 +16,8 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        // FIX: Added ': any' here too
         setAll(cookiesToSet: any) {
-          cookiesToSet.forEach(({ name, value, options }: any) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value }: any) => request.cookies.set(name, value))
           response = NextResponse.next({
             request,
           })
@@ -30,25 +29,33 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  // Redirect to login if user is not authenticated and trying to access dashboard
-  if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
+  const path = request.nextUrl.pathname
+
+  // --- NEW GUEST-FRIENDLY LOGIC ---
+  
+  // 1. Define routes that STRICTLY require a login
+  const strictlyProtected = ['/dashboard/history', '/dashboard/account']
+  const isStrictlyProtected = strictlyProtected.some(route => path.startsWith(route))
+
+  // 2. If trying to access History/Account without a user, redirect to login
+  if (!user && isStrictlyProtected) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // Redirect to dashboard if user IS authenticated and trying to access login
-  if (user && request.nextUrl.pathname === '/') {
+  // 3. If user is logged in and tries to go to the Landing/Login page, send to Dashboard
+  if (user && path === '/') {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
+
+  // NOTE: If !user and path is /dashboard or /dashboard/new, it will now let them through!
 
   return response
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|auth/callback|auth/login-google).*)',
+    '/((?!_next/static|_next/image|favicon.ico|auth/callback|auth/login-google|api/scan|api/split).*)',
   ],
 }

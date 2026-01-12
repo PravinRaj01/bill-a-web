@@ -84,7 +84,7 @@ export default function AuthPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="password" className="text-zinc-400 ml-1">Password</Label>
+              <Label htmlFor="password" title="password" className="text-zinc-400 ml-1">Password</Label>
               <Input 
                 id="password" 
                 name="password" 
@@ -93,7 +93,7 @@ export default function AuthPage() {
                 className="bg-zinc-900 border-zinc-800 h-11 focus:ring-1 ring-white/20 transition-all" 
               />
             </div>
-            {error && <p className="text-xs text-red-500 text-center font-medium animate-bounce">{error}</p>}
+            {error && <p className="text-sm text-red-500 text-center font-medium animate-bounce">{error}</p>}
             <Button type="submit" className="w-full bg-white text-black hover:bg-zinc-200 h-12 font-black uppercase tracking-tighter rounded-xl" disabled={loading}>
               {loading ? "Processing..." : (isLogin ? "Login" : "Create Account")}
             </Button>
@@ -101,6 +101,7 @@ export default function AuthPage() {
 
           <div className="text-center">
             <button 
+              type="button"
               onClick={() => setIsLogin(!isLogin)} 
               className="text-xs text-zinc-500 hover:text-white transition-colors font-medium underline underline-offset-4"
             >
@@ -114,9 +115,12 @@ export default function AuthPage() {
              </div>
           </div>
 
-          <Button variant="ghost" className="w-full text-zinc-500 hover:text-white hover:bg-white/5 h-12 font-bold uppercase tracking-widest text-[10px]" asChild>
-            <Link href="/dashboard">Continue as Guest</Link>
-          </Button>
+          {/* --- FIXED GUEST LINK --- */}
+          <Link href="/dashboard" className="w-full">
+            <Button type="button" variant="ghost" className="w-full text-zinc-500 hover:text-white hover:bg-white/5 h-12 font-bold uppercase tracking-widest text-[10px]">
+              Continue as Guest
+            </Button>
+          </Link>
         </CardContent>
       </Card>
     </div>
