@@ -32,6 +32,7 @@ export default function BillSplitter() {
   const [showReasoning, setShowReasoning] = useState(false)
   const [loading, setLoading] = useState(false)
   
+  
   // ADDED: Splash Screen State
   const [showSplash, setShowSplash] = useState(true)
 
@@ -61,17 +62,29 @@ export default function BillSplitter() {
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.[0]) return
-    setLoading(true)
-    const formData = new FormData()
-    formData.append("file", e.target.files[0])
-    try {
-      const res = await fetch(`${API_URL}/scan`, { method: "POST", body: formData })
-      setItems(await res.json())
-      setStep('REVIEW')
-    } catch (err) { alert("Scan failed") }
-    setLoading(false)
+  if (!e.target.files?.[0]) return
+  setLoading(true)
+  const formData = new FormData()
+  formData.append("file", e.target.files[0])
+  
+  try {
+    const res = await fetch(`${API_URL}/scan`, { method: "POST", body: formData })
+    const data = await res.json()
+    
+    // Check if the data is valid
+    if (!data.items || data.items.length === 0) {
+      alert("Oops! No items detected. Please make sure you're scanning a clear receipt.")
+      setLoading(false)
+      return
+    }
+    
+    setItems(data)
+    setStep('REVIEW')
+  } catch (err) { 
+    alert("Connection error. The 'Brain' might be waking up—try again in a second!") 
   }
+  setLoading(false)
+}
 
   const handleSplit = async () => {
     setLoading(true)
@@ -107,6 +120,11 @@ export default function BillSplitter() {
     window.open(`whatsapp://send?text=${encodeURIComponent(text)}`);
   }
 
+  useEffect(() => {
+  // This "pings" the server immediately on load to end Deep Sleep early
+  fetch(API_URL).catch(() => {}); 
+}, []);
+
   // ADDED: Early return for Splash Screen
   if (showSplash) {
     return <SplashScreen />
@@ -122,10 +140,11 @@ export default function BillSplitter() {
                 <ChevronLeft size={18}/>
               </button>
             )}
-            <div className="bg-white p-1 rounded">
-              <Receipt className="w-3 h-3 text-black" />
+            {/* REPLACED WITH YOUR LOGO */}
+            <div className="bg-white p-0.5 rounded shadow-sm">
+              <img src="/icon.png" alt="logo" className="w-4 h-4 object-contain" />
             </div>
-            <span className="text-sm font-bold tracking-tighter ">Bill.a</span>
+            <span className="text-sm font-bold tracking-tighter">Bill.a</span>
           </div>
           <Badge variant="outline" className="text-[10px] border-white/10 opacity-50">V1.0</Badge>
         </header>
