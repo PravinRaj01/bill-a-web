@@ -69,3 +69,4 @@ export default async function BillDetailPage({ params }: { params: { id: string 
       </div>
     </div>
   );
+}
