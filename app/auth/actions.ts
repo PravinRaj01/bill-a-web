@@ -46,3 +46,21 @@ export async function signup(formData: FormData) {
   revalidatePath('/', 'layout')
   redirect('/dashboard')
 }
+
+export async function saveGroup(name: string, namesList: string[]) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Login required to save groups" }
+
+  const { error } = await supabase
+    .from('saved_groups')
+    .insert({
+      user_id: user.id,
+      group_name: name,
+      names: namesList
+    })
+
+  if (error) return { error: error.message }
+  revalidatePath('/dashboard')
+}

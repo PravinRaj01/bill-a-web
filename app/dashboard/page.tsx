@@ -1,580 +1,79 @@
-"use client";
-import SplashScreen from "@/components/SplashScreen";
-import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
-  TableHead,
-  TableRow,
-} from "@/components/ui/table";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { supabase } from "@/lib/supabase"; // IMPORT SUPABASE
-import { useRouter } from "next/navigation"; // IMPORT ROUTER
-import {
-  Loader2,
-  Plus,
-  Receipt,
-  Share2,
-  X,
-  ChevronDown,
-  ChevronUp,
-  ChevronLeft,
-  Image as ImageIcon,
-} from "lucide-react";
+import { Plus, Users, ArrowRight } from "lucide-react"
+import Link from "next/link"
+import { createClient } from "@/utils/supabase/server"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 
-interface ReceiptItem {
-  name: string;
-  total_price: number;
-  quantity: number;
-  unit_price: number;
-}
-interface ReceiptData {
-  items: ReceiptItem[];
-  tax: number;
-  total: number;
-  currency: string;
-}
-interface SplitRecord {
-  name: string;
-  amount: number;
-  items: string;
-}
-
-type Step = "NAMES" | "SCAN" | "REVIEW" | "SUMMARY";
-const API_URL = "https://dizzy-michele-pravinraj-codes-1a321834.koyeb.app";
-
-export default function BillSplitter() {
-  const router = useRouter();
-  const [step, setStep] = useState<Step>("NAMES");
-  const [people, setPeople] = useState<string[]>([]);
-  const [newName, setNewName] = useState("");
-  const [items, setItems] = useState<ReceiptData | null>(null);
-  const [includeTax, setIncludeTax] = useState(true);
-  const [instruction, setInstruction] = useState("");
-  const [splitResult, setSplitResult] = useState("");
-  const [structuredSplit, setStructuredSplit] = useState<SplitRecord[]>([]);
-  const [showReasoning, setShowReasoning] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [showSplash, setShowSplash] = useState(true);
-
-  // NEW: Auth States
-  const [user, setUser] = useState<any>(null);
-  const [isGuest, setIsGuest] = useState(false);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const galleryRef = useRef<HTMLInputElement>(null);
-
-  const subtotal =
-    items?.items.reduce((sum, item) => sum + item.total_price, 0) || 0;
-  const displayedTotal = includeTax ? items?.total || 0 : subtotal;
-
-  // Splash Screen Timer
-  useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), 2500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // NEW: Auth Checker
-  useEffect(() => {
-    const checkUser = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session) {
-        setUser(session.user);
-        setIsGuest(false);
-      } else {
-        setIsGuest(true);
-      }
-    };
-    checkUser();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setUser(session.user);
-        setIsGuest(false);
-      } else {
-        setUser(null);
-        setIsGuest(true);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const symbol = items?.currency || "RM";
-
-  const addPerson = () => {
-    const name = newName.trim();
-    if (name && !people.includes(name)) {
-      setPeople((prev) => [...prev, name]);
-      setNewName("");
-    }
-  };
-
-  const removePerson = (nameToRemove: string) => {
-    setPeople((prev) => prev.filter((p) => p !== nameToRemove));
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.[0]) return;
-    setLoading(true);
-    const formData = new FormData();
-    formData.append("file", e.target.files[0]);
-
-    try {
-      const res = await fetch(`${API_URL}/scan`, {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-
-      if (!data.items || data.items.length === 0) {
-        alert(
-          "Oops! No items detected. Please make sure you're scanning a clear receipt."
-        );
-        setLoading(false);
-        return;
-      }
-
-      // NEW: Save to Supabase (Guest or User)
-      const { error } = await supabase.from("sessions").insert([
-        {
-          host_id: user?.id || null,
-          raw_receipt_data: data,
-          currency: data.currency,
-          status: "active",
-        },
-      ]);
-
-      if (error) console.error("Database save failed, continuing locally.");
-
-      setItems(data);
-      setStep("REVIEW");
-    } catch (err) {
-      alert(
-        "Connection error. The 'Brain' might be waking up—try again in a second!"
-      );
-    }
-    setLoading(false);
-  };
-
-  const handleSplit = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/split`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          receipt_data: JSON.stringify(items),
-          user_instruction: instruction || "Split equally",
-          people_list: people,
-          apply_tax: includeTax,
-        }),
-      });
-      const data = await res.json();
-      try {
-        const jsonMatch = data.result.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          setStructuredSplit(JSON.parse(jsonMatch[0]));
-        }
-      } catch (e) {
-        console.error("Could not parse table data");
-      }
-      setSplitResult(data.result);
-      setStep("SUMMARY");
-    } catch (err) {
-      alert("Split failed");
-    }
-    setLoading(false);
-  };
-
-  const handleWhatsAppShare = () => {
-    let text = `*Bill-a Settlement Summary (${symbol})*\n\n`;
-    structuredSplit.forEach((row) => {
-      text += `👤 *${row.name}*: ${symbol}${row.amount.toFixed(2)}\n`;
-    });
-    window.open(`whatsapp://send?text=${encodeURIComponent(text)}`);
-  };
-
-  useEffect(() => {
-    fetch(API_URL).catch(() => {});
-  }, []);
-
-  if (showSplash) {
-    return <SplashScreen />;
-  }
+export default async function DashboardPage() {
+  const supabase = await createClient()
+  
+  const { data: groups } = await supabase
+    .from('saved_groups')
+    .select('*')
+    .order('created_at', { ascending: false })
 
   return (
-    <SidebarProvider>
-      <SidebarInset className="bg-[#09090b] text-slate-50 min-h-screen font-sans">
-        <header className="flex h-14 shrink-0 items-center justify-between px-6 border-b border-white/5">
-          <div className="flex items-center gap-2">
-            {step !== "NAMES" && (
-              <button
-                onClick={() =>
-                  setStep(
-                    step === "SUMMARY"
-                      ? "REVIEW"
-                      : step === "REVIEW"
-                      ? "SCAN"
-                      : "NAMES"
-                  )
-                }
-                className="mr-2 opacity-50 hover:opacity-100"
-              >
-                <ChevronLeft size={18} />
-              </button>
-            )}
-            <div className="bg-white p-0.5 rounded shadow-sm">
-              <img
-                src="/icon.png"
-                alt="logo"
-                className="w-4 h-4 object-contain"
-              />
-            </div>
-            <span className="text-sm font-bold tracking-tighter">Bill.a</span>
+    <div className="p-6 md:p-10 max-w-4xl mx-auto space-y-10">
+      <header className="flex flex-col gap-2">
+        <h1 className="text-4xl font-black tracking-tight text-white">Dashboard</h1>
+        <p className="text-zinc-500 font-medium">Start a new split or manage your groups.</p>
+      </header>
+
+      {/* Primary Action Buttons */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Button size="lg" className="h-40 bg-white text-black hover:bg-zinc-200 flex flex-col gap-3 rounded-3xl transition-all" asChild>
+          <Link href="/dashboard/new">
+            <Plus className="w-8 h-8" strokeWidth={3} />
+            <span className="text-xl font-bold uppercase tracking-tight">New Split Session</span>
+          </Link>
+        </Button>
+
+        <Card className="bg-zinc-900 border-zinc-800 flex items-center p-8 rounded-3xl">
+          <div className="space-y-1">
+            <h3 className="font-bold text-zinc-100 text-lg">Quick Access</h3>
+            <p className="text-sm text-zinc-500 leading-relaxed">
+              Scan a receipt and assign items to friends in seconds.
+            </p>
           </div>
-          <Badge
-            variant="outline"
-            className="text-[10px] border-white/10 opacity-50"
-          >
-            V1.0
-          </Badge>
-        </header>
+        </Card>
+      </div>
 
-        <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full">
-          {/* STEP 1: NAMES */}
-          {step === "NAMES" && (
-            <div className="space-y-6 animate-in fade-in duration-500">
-              <div className="space-y-1">
-                <h2 className="text-xl font-bold tracking-tight">
-                  Group Setup
-                </h2>
-                <p className="text-slate-500 text-xs uppercase tracking-widest">
-                  Step 1 of 3
-                </p>
-              </div>
-              <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex gap-2">
-                    <Input
-                      className="bg-[#141416] border-white/5 focus:ring-1 ring-white/20 h-11"
-                      placeholder="Enter name..."
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && addPerson()}
-                    />
-                    <Button
-                      onClick={addPerson}
-                      className="bg-white text-black hover:bg-slate-200"
-                    >
-                      <Plus size={18} />
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-2 min-h-[44px] p-2 rounded-lg bg-black/20 border border-white/5">
-                    {people.map((p) => (
-                      <Badge
-                        key={p}
-                        variant="secondary"
-                        className="bg-white/5 hover:bg-white/10 py-1.5 px-3 flex gap-2 items-center border-none text-slate-300"
-                      >
-                        {p}
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            removePerson(p);
-                          }}
-                          className="hover:bg-white/20 rounded-full p-0.5 transition-colors"
-                        >
-                          <X size={12} />
-                        </button>
-                      </Badge>
-                    ))}
-                    {people.length === 0 && (
-                      <span className="text-slate-600 text-xs flex items-center px-2 italic">
-                        No names added yet...
-                      </span>
-                    )}
-                  </div>
-                  <Button
-                    className="w-full h-11 bg-white text-black font-bold text-sm"
-                    disabled={people.length < 1}
-                    onClick={() => setStep("SCAN")}
-                  >
-                    Start Scanning
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* STEP 2: SCAN */}
-          {step === "SCAN" && (
-            <div className="space-y-6 animate-in slide-in-from-bottom-4">
-              <Card className="bg-[#0c0c0e] border-dashed border border-white/10 py-12">
-                <CardContent className="text-center space-y-6">
-                  <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/10">
-                    <Receipt className="w-6 h-6 text-white opacity-40" />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-bold">Scan Receipt</h3>
-                    <p className="text-xs text-slate-500 uppercase tracking-widest">
-                      Analyzing for {people.join(", ")}
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    ref={fileInputRef}
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    ref={galleryRef}
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      className="w-full h-14 text-md bg-white text-black font-bold"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <Loader2 className="animate-spin mr-2" />
-                      ) : (
-                        "Snap Photo"
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="text-xs text-slate-500 hover:text-white"
-                      onClick={() => galleryRef.current?.click()}
-                      disabled={loading}
-                    >
-                      <ImageIcon size={14} className="mr-2" /> Upload from
-                      Gallery
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* STEP 3: REVIEW */}
-          {step === "REVIEW" && (
-            <div className="space-y-6">
-              <Card className="bg-[#0c0c0e] border-white/5 overflow-hidden shadow-2xl">
-                <div className="bg-white/5 p-4 border-b border-white/5 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                  Extracted Items
-                </div>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader className="bg-white/5">
-                      <TableRow className="border-white/5">
-                        <TableHead className="text-[10px] uppercase text-slate-500">
-                          Item
-                        </TableHead>
-                        <TableHead className="text-center text-[10px] uppercase text-slate-500">
-                          Qty
-                        </TableHead>
-                        <TableHead className="text-right text-[10px] uppercase text-slate-500">
-                          Total ({symbol})
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {items?.items.map((item: any, i: number) => (
-                        <TableRow
-                          key={i}
-                          className="border-white/5 hover:bg-white/[0.02]"
-                        >
-                          <TableCell className="py-4 font-medium text-sm">
-                            {item.name}
-                            <div className="text-[10px] text-slate-500 italic">
-                              {symbol}
-                              {item.unit_price.toFixed(2)} each
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center text-sm text-slate-400">
-                            x{item.quantity}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-white">
-                            {item.total_price.toFixed(2)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-
-                  <div className="p-6 space-y-6">
-                    <div className="bg-black/40 border border-white/5 rounded-xl p-4 flex justify-between items-end">
-                      <div className="space-y-1">
-                        <div className="text-[10px] font-bold uppercase text-slate-500 tracking-widest">
-                          Grand Total
-                        </div>
-                        <div className="text-2xl font-black tracking-tighter text-white">
-                          {symbol}
-                          {displayedTotal.toFixed(2)}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge
-                          variant="outline"
-                          className="text-[9px] border-white/10 text-slate-500"
-                        >
-                          {includeTax ? "INCL. TAX" : "EXCL. TAX"}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 rounded-xl bg-black border border-white/5">
-                      <div className="space-y-0.5">
-                        <div className="text-[10px] font-bold uppercase text-slate-500">
-                          Apply Tax & Svc
-                        </div>
-                        <div className="text-xs text-white opacity-60">
-                          {symbol}
-                          {items?.tax.toFixed(2)} detected
-                        </div>
-                      </div>
-                      <Switch
-                        checked={includeTax}
-                        onCheckedChange={setIncludeTax}
-                      />
-                    </div>
-
-                    <div className="space-y-3">
-                      <Input
-                        placeholder="Assign items? (e.g. Lim had the burger)"
-                        value={instruction}
-                        onChange={(e) => setInstruction(e.target.value)}
-                        className="bg-black border-white/5 h-12 text-sm"
-                      />
-                      <Button
-                        className="w-full h-12 bg-white text-black font-bold"
-                        onClick={handleSplit}
-                        disabled={loading}
-                      >
-                        {loading ? (
-                          <Loader2 className="animate-spin mr-2" />
-                        ) : (
-                          "Split Bill"
-                        )}
-                      </Button>
+      {/* Saved Groups Section */}
+      <section className="space-y-6">
+        <h2 className="text-xl font-bold flex items-center gap-2 text-zinc-200">
+          <Users className="w-5 h-5 text-zinc-500" />
+          Saved Groups
+        </h2>
+        
+        {groups && groups.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {groups.map((group) => (
+              <Button 
+                key={group.id} 
+                variant="outline" 
+                className="h-auto p-6 justify-between border-zinc-800 bg-zinc-950 hover:bg-zinc-900 rounded-2xl group transition-all"
+                asChild
+              >
+                <Link href={`/dashboard/new?group_id=${group.id}`}>
+                  <div className="text-left space-y-1">
+                    <div className="font-bold text-zinc-100 uppercase tracking-tight">{group.group_name}</div>
+                    <div className="text-xs text-zinc-500 font-mono">
+                      {group.names.length} members: {group.names.slice(0, 3).join(', ')}...
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* STEP 4: SUMMARY */}
-          {step === "SUMMARY" && (
-            <div className="space-y-6">
-              {/* NEW: Guest Banner */}
-              {isGuest && (
-                <div className="bg-white/5 border border-white/10 rounded-lg p-3 flex justify-between items-center animate-in fade-in slide-in-from-top-2">
-                  <p className="text-[10px] text-slate-400">
-                    Want to save this bill to your history?
-                  </p>
-                  <Button
-                    variant="link"
-                    className="text-[10px] text-white underline p-0 h-auto"
-                    onClick={() => router.push("/login")}
-                  >
-                    Login Now
-                  </Button>
-                </div>
-              )}
-
-              <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl overflow-hidden ring-1 ring-white/10">
-                <CardHeader className="text-center border-b border-white/5 py-4">
-                  <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em]">
-                    Final Split
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader className="bg-white/[0.02]">
-                      <TableRow className="border-white/5">
-                        <TableHead className="text-[10px] uppercase font-bold text-slate-500">
-                          Name
-                        </TableHead>
-                        <TableHead className="text-right text-[10px] uppercase font-bold text-slate-500">
-                          Amount ({symbol})
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {structuredSplit.map((row, i) => (
-                        <TableRow key={i} className="border-white/5">
-                          <TableCell className="py-4 font-bold text-sm">
-                            {row.name}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-white">
-                            {symbol}
-                            {row.amount.toFixed(2)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-
-                  <div className="p-6 space-y-4">
-                    <div className="border border-white/5 rounded-lg overflow-hidden">
-                      <button
-                        onClick={() => setShowReasoning(!showReasoning)}
-                        className="w-full p-3 flex justify-between items-center text-[10px] font-bold text-slate-500 hover:bg-white/5 transition-colors uppercase"
-                      >
-                        View Math Breakdown{" "}
-                        {showReasoning ? (
-                          <ChevronUp size={14} />
-                        ) : (
-                          <ChevronDown size={14} />
-                        )}
-                      </button>
-                      {showReasoning && (
-                        <div className="p-4 bg-black text-[10px] font-mono text-slate-500 border-t border-white/5 whitespace-pre-wrap leading-relaxed">
-                          {splitResult}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        className="flex-1 h-12 bg-[#25D366] hover:bg-[#20bd5a] text-black font-black"
-                        onClick={handleWhatsAppShare}
-                      >
-                        <Share2 className="w-4 h-4 mr-2" /> Share WhatsApp
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="flex-1 h-12 border-white/5"
-                        onClick={() => window.location.reload()}
-                      >
-                        Reset
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
-  );
+                  <ArrowRight className="w-5 h-5 text-zinc-700 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                </Link>
+              </Button>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-3xl border-2 border-dashed border-zinc-900 p-16 text-center">
+            <Users className="w-10 h-10 text-zinc-800 mx-auto mb-4" />
+            <p className="text-zinc-600 font-medium italic">No saved groups yet.</p>
+            <p className="text-xs text-zinc-700 mt-2 tracking-wide uppercase">Save a group during your next split!</p>
+          </div>
+        )}
+      </section>
+    </div>
+  )
 }
