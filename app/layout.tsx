@@ -6,13 +6,20 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Bill.a | AI Splitter",
-  description: "Precision AI Bill Splitting",
+  title: "Bill.a - The Splitter",
+  description: "AI-Powered Bill Splitter",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Bill.a",
+  },
+  icons: {
+  icon: '/icon.png',
+  shortcut: '/favicon.ico',
+  apple: [
+    { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
+  ],
   },
   formatDetection: {
     telephone: false, // Prevents phone numbers from turning blue/clickable
