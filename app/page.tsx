@@ -1,5 +1,6 @@
 "use client"
-import { useState, useRef } from 'react'
+import SplashScreen from "@/components/SplashScreen"
+import { useState, useRef, useEffect } from 'react' // ADDED: useEffect
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -30,10 +31,19 @@ export default function BillSplitter() {
   const [structuredSplit, setStructuredSplit] = useState<SplitRecord[]>([])
   const [showReasoning, setShowReasoning] = useState(false)
   const [loading, setLoading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const galleryRef = useRef<HTMLInputElement>(null) // ADDED: Gallery Ref
+  
+  // ADDED: Splash Screen State
+  const [showSplash, setShowSplash] = useState(true)
 
-  // ADDED: Dynamic Symbol
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const galleryRef = useRef<HTMLInputElement>(null)
+
+  // ADDED: Splash Screen Timer
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSplash(false), 2500) // Shows for 2.5 seconds
+    return () => clearTimeout(timer)
+  }, [])
+
   const symbol = items?.currency || "RM";
 
   const addPerson = () => {
@@ -95,12 +105,16 @@ export default function BillSplitter() {
     window.open(`whatsapp://send?text=${encodeURIComponent(text)}`);
   }
 
+  // ADDED: Early return for Splash Screen
+  if (showSplash) {
+    return <SplashScreen />
+  }
+
   return (
     <SidebarProvider>
       <SidebarInset className="bg-[#09090b] text-slate-50 min-h-screen font-sans">
         <header className="flex h-14 shrink-0 items-center justify-between px-6 border-b border-white/5">
           <div className="flex items-center gap-2">
-            {/* ADDED: Back Button */}
             {step !== 'NAMES' && (
               <button onClick={() => setStep(step === 'SUMMARY' ? 'REVIEW' : step === 'REVIEW' ? 'SCAN' : 'NAMES')} className="mr-2 opacity-50 hover:opacity-100">
                 <ChevronLeft size={18}/>
@@ -168,14 +182,12 @@ export default function BillSplitter() {
                     <p className="text-xs text-slate-500 uppercase tracking-widest">Analyzing for {people.join(", ")}</p>
                   </div>
                   <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                  {/* ADDED: Gallery Input */}
                   <input type="file" accept="image/*" ref={galleryRef} className="hidden" onChange={handleFileUpload} />
                   
                   <div className="flex flex-col gap-2">
                     <Button className="w-full h-14 text-md bg-white text-black font-bold" onClick={() => fileInputRef.current?.click()} disabled={loading}>
                       {loading ? <Loader2 className="animate-spin mr-2"/> : "Snap Photo"}
                     </Button>
-                    {/* ADDED: Gallery Button */}
                     <Button variant="ghost" className="text-xs text-slate-500 hover:text-white" onClick={() => galleryRef.current?.click()} disabled={loading}>
                       <ImageIcon size={14} className="mr-2"/> Upload from Gallery
                     </Button>
@@ -184,7 +196,6 @@ export default function BillSplitter() {
               </Card>
             </div>
           )}
-
 
           {step === 'REVIEW' && (
             <div className="space-y-6">

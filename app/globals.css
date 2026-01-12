@@ -115,6 +115,16 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; visibility: hidden; }
+}
+
+.splash-fade {
+  animation: fade-out 0.5s ease-in-out forwards;
+  animation-delay: 1.5s; /* Shows for 1.5s then fades */
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
