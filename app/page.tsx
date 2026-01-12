@@ -38,6 +38,8 @@ export default function BillSplitter() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
 
+  const subtotal = items?.items.reduce((sum, item) => sum + item.total_price, 0) || 0;
+  const displayedTotal = includeTax ? (items?.total || 0) : subtotal;
   // ADDED: Splash Screen Timer
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 2500) // Shows for 2.5 seconds
@@ -225,7 +227,23 @@ export default function BillSplitter() {
                       ))}
                     </TableBody>
                   </Table>
+
                   <div className="p-6 space-y-6">
+                    {/* NEW: DYNAMIC TOTAL SHOWCASE */}
+                    <div className="bg-black/40 border border-white/5 rounded-xl p-4 flex justify-between items-end">
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase text-slate-500 tracking-widest">Grand Total</div>
+                        <div className="text-2xl font-black tracking-tighter text-white">
+                          {symbol}{displayedTotal.toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant="outline" className="text-[9px] border-white/10 text-slate-500">
+                          {includeTax ? "INCL. TAX" : "EXCL. TAX"}
+                        </Badge>
+                      </div>
+                    </div>
+
                     <div className="flex items-center justify-between p-4 rounded-xl bg-black border border-white/5">
                       <div className="space-y-0.5">
                         <div className="text-[10px] font-bold uppercase text-slate-500">Apply Tax & Svc</div>
@@ -233,6 +251,7 @@ export default function BillSplitter() {
                       </div>
                       <Switch checked={includeTax} onCheckedChange={setIncludeTax} />
                     </div>
+
                     <div className="space-y-3">
                       <Input 
                         placeholder="Assign items? (e.g. Lim had the burger)" 
@@ -241,7 +260,7 @@ export default function BillSplitter() {
                         className="bg-black border-white/5 h-12 text-sm" 
                       />
                       <Button className="w-full h-12 bg-white text-black font-bold" onClick={handleSplit} disabled={loading}>
-                         {loading ? <Loader2 className="animate-spin mr-2"/> : "Split Bill"}
+                        {loading ? <Loader2 className="animate-spin mr-2"/> : "Split Bill"}
                       </Button>
                     </div>
                   </div>
