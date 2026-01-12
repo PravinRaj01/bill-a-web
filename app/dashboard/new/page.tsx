@@ -149,7 +149,6 @@ function BillSplitterContent() {
         }),
       });
       
-      
       const data = await res.json();
       const jsonMatch = data.result.match(/\[[\s\S]*\]/);
       
@@ -159,19 +158,22 @@ function BillSplitterContent() {
         setSplitResult(data.result);
 
         if (user) {
+          // 1. Get current session count for naming
           const { count } = await supabase
             .from('bill_history')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id);
           
+          // 2. Logic: Group Name > Custom Instruction > Session N
           const sessionName = groupName || instruction || `Session ${(count || 0) + 1}`;
 
+          // 3. Insert into DB
           await supabase.from('bill_history').insert({
             user_id: user.id,
             bill_title: sessionName,
             total_amount: displayedTotal,
             data: parsedResult,
-            reasoning_log: data.result 
+            reasoning_log: data.result // Save the log for history retrieval
           });
         }
         setStep("SUMMARY");
