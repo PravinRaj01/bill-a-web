@@ -15,7 +15,6 @@ export default function DashboardPage() {
     const fetchGroups = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        // Fetch groups ordered by newest first
         const { data } = await supabase
           .from('saved_groups')
           .select('*')
@@ -28,79 +27,106 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 pb-24 md:p-10 max-w-md mx-auto animate-in fade-in">
+    // CHANGED: max-w-md -> max-w-6xl to allow width on desktop
+    <div className="min-h-screen bg-black text-white p-6 pb-24 md:p-10 max-w-6xl mx-auto animate-in fade-in">
       
+      {/* Header */}
+      <header className="flex justify-between items-center mb-10 pt-2">
+        <h1 className="text-3xl font-black tracking-tighter text-white">Bill.a</h1>
+        <div className="px-3 py-1 bg-zinc-900 rounded-full border border-white/5">
+          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">V1.0</span>
+        </div>
+      </header>
 
-      <div className="space-y-8">
-        {/* New Session Button */}
-        <Link href="/dashboard/new" className="block">
-          <Button className="w-full h-48 bg-white text-black hover:bg-zinc-200 rounded-[2.5rem] flex flex-col gap-4 group transition-all active:scale-95 shadow-2xl border-0">
-            <Plus size={52} strokeWidth={3.5} className="group-hover:scale-110 transition-transform duration-300" />
-            <span className="text-2xl font-black uppercase tracking-tighter">New Session</span>
-          </Button>
-        </Link>
+      {/* CHANGED: Grid layout for desktop (2 columns), Stack for mobile (1 column) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-start">
+        
+        {/* LEFT COLUMN: Actions & Instructions */}
+        <div className="space-y-8">
+          {/* New Session Button */}
+          <Link href="/dashboard/new" className="block group">
+            <Button className="w-full h-64 md:h-80 bg-white text-black hover:bg-zinc-200 rounded-[2.5rem] flex flex-col items-center justify-center gap-6 transition-all active:scale-95 shadow-2xl border-0">
+              <Plus size={72} strokeWidth={3} className="group-hover:scale-110 transition-transform duration-300" />
+              <span className="text-3xl font-black uppercase tracking-tighter">New Session</span>
+            </Button>
+          </Link>
 
-        {/* Instructions */}
-        <section className="bg-zinc-900/30 border border-white/5 rounded-3xl p-6 space-y-4">
-          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2">How it works</h3>
-          <div className="space-y-4">
-            <div className="flex gap-4 items-start">
-              <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
-                <Zap size={14} className="text-white" />
+          {/* Instructions */}
+          <section className="bg-zinc-900/30 border border-white/5 rounded-3xl p-8 space-y-6">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">How it works</h3>
+            <div className="space-y-5">
+              <div className="flex gap-4 items-start">
+                <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
+                  <Zap size={16} className="text-white" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">Setup</h4>
+                  <p className="text-xs text-zinc-400 font-medium leading-relaxed mt-1">Create a group or pick a saved crew.</p>
+                </div>
               </div>
-              <p className="text-xs text-zinc-400 font-medium leading-relaxed pt-1.5">Create a group or pick a saved crew.</p>
-            </div>
-            <div className="flex gap-4 items-start">
-              <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
-                <Camera size={14} className="text-white" />
+              <div className="flex gap-4 items-start">
+                <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
+                  <Camera size={16} className="text-white" />
+                </div>
+                 <div>
+                  <h4 className="text-sm font-bold text-white">Scan</h4>
+                  <p className="text-xs text-zinc-400 font-medium leading-relaxed mt-1">Snap a receipt. AI extracts the items.</p>
+                </div>
               </div>
-              <p className="text-xs text-zinc-400 font-medium leading-relaxed pt-1.5">Snap a receipt. AI extracts the items.</p>
-            </div>
-            <div className="flex gap-4 items-start">
-              <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
-                <Share2 size={14} className="text-white" />
+              <div className="flex gap-4 items-start">
+                <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
+                  <Share2 size={16} className="text-white" />
+                </div>
+                 <div>
+                  <h4 className="text-sm font-bold text-white">Share</h4>
+                  <p className="text-xs text-zinc-400 font-medium leading-relaxed mt-1">Split costs and share via WhatsApp.</p>
+                </div>
               </div>
-              <p className="text-xs text-zinc-400 font-medium leading-relaxed pt-1.5">Split costs and share via WhatsApp.</p>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
 
-        {/* Saved Groups */}
-        <div>
-          <div className="flex justify-between items-end px-2 mb-4">
+        {/* RIGHT COLUMN: Saved Groups */}
+        <div className="space-y-4 h-full">
+          <div className="flex justify-between items-end px-2 mb-2">
             <div className="flex items-center gap-2 text-zinc-500">
-              <Users size={14} />
-              <h2 className="text-[10px] font-black uppercase tracking-widest">Saved Groups</h2>
+              <Users size={16} />
+              <h2 className="text-xs font-black uppercase tracking-widest">Saved Groups</h2>
             </div>
             <Link href="/dashboard/groups" className="text-[10px] font-bold text-zinc-600 hover:text-white transition-colors uppercase tracking-widest">
               Manage
             </Link>
           </div>
 
-          <div className="grid gap-3">
+          <div className="space-y-4">
             {groups.length > 0 ? (
               groups.map((group) => (
                 <Link key={group.id} href={`/dashboard/new?group_id=${group.id}`}>
-                  <Card className="bg-[#0c0c0e] border border-white/5 hover:border-white/20 transition-all rounded-2xl p-5 group flex items-center justify-between">
-                    <div className="flex flex-col gap-1 overflow-hidden mr-4">
-                      <h3 className="font-bold text-white uppercase tracking-tight truncate text-sm">{group.group_name}</h3>
-                      <p className="text-[10px] text-zinc-500 font-mono uppercase truncate">
+                  <Card className="bg-[#0c0c0e] border border-white/5 hover:border-white/20 transition-all rounded-3xl p-6 group flex items-center justify-between h-24">
+                    <div className="flex flex-col justify-center gap-1.5 overflow-hidden mr-4 h-full">
+                      <h3 className="font-bold text-white uppercase tracking-tight truncate text-base leading-none">
+                        {group.group_name}
+                      </h3>
+                      <p className="text-[11px] text-zinc-500 font-mono uppercase truncate leading-none">
                         {group.names.join(", ")}
                       </p>
                     </div>
-                    <div className="w-8 h-8 bg-zinc-900 rounded-full flex items-center justify-center shrink-0 group-hover:bg-white group-hover:text-black transition-colors">
-                      <ChevronRight size={14} />
+                    <div className="w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center shrink-0 group-hover:bg-white group-hover:text-black transition-colors">
+                      <ChevronRight size={20} />
                     </div>
                   </Card>
                 </Link>
               ))
             ) : (
-              <div className="text-center py-8 border border-dashed border-white/5 rounded-2xl">
-                <p className="text-[10px] text-zinc-600 uppercase tracking-widest">No saved groups</p>
+              <div className="h-64 flex flex-col items-center justify-center text-center border-2 border-dashed border-white/5 rounded-[2.5rem]">
+                <Users className="w-10 h-10 text-zinc-800 mb-4" />
+                <p className="text-xs text-zinc-600 uppercase tracking-widest font-bold">No saved groups</p>
+                <p className="text-[10px] text-zinc-700 mt-2">Save your frequent squads here.</p>
               </div>
             )}
           </div>
         </div>
+
       </div>
     </div>
   )
