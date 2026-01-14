@@ -27,7 +27,6 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    // CHANGED: max-w-md -> max-w-6xl to allow width on desktop
     <div className="min-h-screen bg-black text-white p-6 pb-24 md:p-10 max-w-6xl mx-auto animate-in fade-in">
       
       {/* Header */}
@@ -38,7 +37,6 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* CHANGED: Grid layout for desktop (2 columns), Stack for mobile (1 column) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-start">
         
         {/* LEFT COLUMN: Actions & Instructions */}
@@ -101,9 +99,12 @@ export default function DashboardPage() {
           <div className="space-y-4">
             {groups.length > 0 ? (
               groups.map((group) => (
-                <Link key={group.id} href={`/dashboard/new?group_id=${group.id}`}>
+                // Added w-full here to ensure the link fills the grid column
+                <Link key={group.id} href={`/dashboard/new?group_id=${group.id}`} className="block w-full">
                   <Card className="bg-[#0c0c0e] border border-white/5 hover:border-white/20 transition-all rounded-3xl p-6 group flex items-center justify-between h-24">
-                    <div className="flex flex-col justify-center gap-1.5 overflow-hidden mr-4 h-full">
+                    
+                    {/* FIXED: Added flex-1 and min-w-0 to fix disappearance */}
+                    <div className="flex flex-col justify-center gap-1.5 flex-1 min-w-0 mr-4">
                       <h3 className="font-bold text-white uppercase tracking-tight truncate text-base leading-none">
                         {group.group_name}
                       </h3>
@@ -111,6 +112,7 @@ export default function DashboardPage() {
                         {group.names.join(", ")}
                       </p>
                     </div>
+
                     <div className="w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center shrink-0 group-hover:bg-white group-hover:text-black transition-colors">
                       <ChevronRight size={20} />
                     </div>
