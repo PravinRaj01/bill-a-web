@@ -29,13 +29,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-24 md:p-10 max-w-md mx-auto animate-in fade-in">
-      {/* Header - Fixed: Non-italic, minimal */}
-      <header className="flex justify-between items-center mb-8 pt-2">
-        <h1 className="text-3xl font-black tracking-tighter text-white">Bill.a</h1>
-        <div className="px-3 py-1 bg-zinc-900 rounded-full border border-white/5">
-          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">V1.0</span>
-        </div>
-      </header>
+      
 
       <div className="space-y-8">
         {/* New Session Button */}
