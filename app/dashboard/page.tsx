@@ -34,7 +34,7 @@ export default function DashboardPage() {
         {/* New Session Button */}
         <Link href="/dashboard/new" className="block">
           <Button className="w-full h-48 bg-white text-black hover:bg-zinc-200 rounded-[2.5rem] flex flex-col gap-4 group transition-all active:scale-95 shadow-2xl border-0">
-            <Plus size={64} strokeWidth={3.5} className="group-hover:scale-110 transition-transform duration-300" />
+            <Plus size={72} strokeWidth={3.5} className="group-hover:scale-110 transition-transform duration-300" />
             <span className="text-2xl font-black uppercase tracking-tighter">New Session</span>
           </Button>
         </Link>
@@ -77,14 +77,14 @@ export default function DashboardPage() {
           </div>
 
           {/* GROUPS LIST: Spacing Fixed */}
-          <div className="space-y-4">
+          <div className="space-y-6">
             {groups.length > 0 ? (
               groups.map((group) => (
                 <Link key={group.id} href={`/dashboard/new?group_id=${group.id}`}>
-                  <Card className="bg-[#0c0c0e] border border-white/5 hover:border-white/20 transition-all rounded-3xl p-4 group flex items-center justify-between">
-                    <div className="flex flex-col gap-1 overflow-hidden mr-4 justify-center min-h-12">
-                      <h3 className="font-bold text-white uppercase tracking-tight truncate text-sm">{group.group_name}</h3>
-                      <p className="text-[10px] text-zinc-500 font-mono uppercase truncate">
+                  <Card className="bg-[#0c0c0e] border border-white/5 hover:border-white/20 transition-all rounded-3xl p-4 h-16 group flex items-center justify-between">
+                    <div className="flex flex-col gap-1 overflow-hidden mr-4 justify-center h-full">
+                      <h3 className="font-bold text-white uppercase tracking-tight truncate text-center text-sm">{group.group_name}</h3>
+                      <p className="text-[10px] text-zinc-500 font-mono uppercase truncate text-center">
                         {group.names.join(", ")}
                       </p>
                     </div>
