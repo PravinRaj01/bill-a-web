@@ -29,6 +29,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-24 md:p-10 max-w-md mx-auto animate-in fade-in">
+      
 
       <div className="space-y-8">
         {/* New Session Button */}
@@ -76,21 +77,19 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {/* GROUPS LIST: Spacing Fixed */}
-          <div className="space-y-4">
+          <div className="grid gap-3">
             {groups.length > 0 ? (
               groups.map((group) => (
                 <Link key={group.id} href={`/dashboard/new?group_id=${group.id}`}>
-                  <Card className="bg-[#0c0c0e] border border-white/5 hover:border-white/20 transition-all rounded-3xl p-4 group flex items-center justify-between">
+                  <Card className="bg-[#0c0c0e] border border-white/5 hover:border-white/20 transition-all rounded-2xl p-5 group flex items-center justify-between">
                     <div className="flex flex-col gap-1 overflow-hidden mr-4">
                       <h3 className="font-bold text-white uppercase tracking-tight truncate text-sm">{group.group_name}</h3>
                       <p className="text-[10px] text-zinc-500 font-mono uppercase truncate">
                         {group.names.join(", ")}
                       </p>
                     </div>
-                    {/* Icon container size increased for better spacing */}
-                    <div className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center shrink-0 group-hover:bg-white group-hover:text-black transition-colors">
-                      <ChevronRight size={16} />
+                    <div className="w-8 h-8 bg-zinc-900 rounded-full flex items-center justify-center shrink-0 group-hover:bg-white group-hover:text-black transition-colors">
+                      <ChevronRight size={14} />
                     </div>
                   </Card>
                 </Link>
