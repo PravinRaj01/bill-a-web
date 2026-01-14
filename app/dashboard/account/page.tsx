@@ -3,11 +3,9 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { 
-  ChevronLeft, 
   LogOut, 
   User, 
   Wallet, 
@@ -59,14 +57,9 @@ export default function AccountPage() {
     <div className="min-h-screen bg-black text-white p-6 md:p-10 max-w-xl mx-auto animate-in fade-in duration-500">
       
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/dashboard">
-          <Button variant="ghost" size="icon" className="rounded-full text-zinc-500 hover:text-white hover:bg-white/10">
-            <ChevronLeft size={24} />
-          </Button>
-        </Link>
-        <h1 className="text-2xl font-black uppercase tracking-tighter">My Account</h1>
-      </div>
+      <header className="space-y-1 mb-8">
+        <h1 className="text-3xl font-black tracking-tighter uppercase italic text-white">My Account</h1>
+      </header>
 
       <div className="space-y-6">
         
