@@ -28,14 +28,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-black text-white p-6 pb-24 md:p-10 max-w-6xl mx-auto animate-in fade-in">
-      
-      {/* Header */}
-      <header className="flex justify-between items-center mb-10 pt-2">
-        <h1 className="text-3xl font-black tracking-tighter text-white">Bill.a</h1>
-        <div className="px-3 py-1 bg-zinc-900 rounded-full border border-white/5">
-          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">V1.0</span>
-        </div>
-      </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-start">
         
