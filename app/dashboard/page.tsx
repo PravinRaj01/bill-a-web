@@ -15,7 +15,12 @@ export default function DashboardPage() {
     const fetchGroups = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data } = await supabase.from('saved_groups').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+        // Fetch groups ordered by newest first
+        const { data } = await supabase
+          .from('saved_groups')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
         if (data) setGroups(data)
       }
     }
@@ -23,9 +28,9 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 pb-24 md:p-10 max-w-md mx-auto">
-      {/* Header - Minimal & Non-Italic */}
-      <header className="flex justify-between items-center mb-8 pt-4">
+    <div className="min-h-screen bg-black text-white p-6 pb-24 md:p-10 max-w-md mx-auto animate-in fade-in">
+      {/* Header - Fixed: Non-italic, minimal */}
+      <header className="flex justify-between items-center mb-8 pt-2">
         <h1 className="text-3xl font-black tracking-tighter text-white">Bill.a</h1>
         <div className="px-3 py-1 bg-zinc-900 rounded-full border border-white/5">
           <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">V1.0</span>
@@ -33,15 +38,15 @@ export default function DashboardPage() {
       </header>
 
       <div className="space-y-8">
-        {/* BIG New Session Button */}
+        {/* New Session Button */}
         <Link href="/dashboard/new" className="block">
-          <Button className="w-full h-48 bg-white text-black hover:bg-zinc-200 rounded-[2rem] flex flex-col gap-4 group transition-all active:scale-95 shadow-2xl">
-            <Plus size={48} strokeWidth={3} className="group-hover:scale-110 transition-transform duration-300" />
+          <Button className="w-full h-48 bg-white text-black hover:bg-zinc-200 rounded-[2.5rem] flex flex-col gap-4 group transition-all active:scale-95 shadow-2xl border-0">
+            <Plus size={52} strokeWidth={3.5} className="group-hover:scale-110 transition-transform duration-300" />
             <span className="text-2xl font-black uppercase tracking-tighter">New Session</span>
           </Button>
         </Link>
 
-        {/* Quick Instructions */}
+        {/* Instructions */}
         <section className="bg-zinc-900/30 border border-white/5 rounded-3xl p-6 space-y-4">
           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2">How it works</h3>
           <div className="space-y-4">
@@ -66,7 +71,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Saved Groups Header */}
+        {/* Saved Groups */}
         <div>
           <div className="flex justify-between items-end px-2 mb-4">
             <div className="flex items-center gap-2 text-zinc-500">
@@ -78,19 +83,20 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {/* Groups List */}
-          <div className="space-y-3">
+          <div className="grid gap-3">
             {groups.length > 0 ? (
               groups.map((group) => (
                 <Link key={group.id} href={`/dashboard/new?group_id=${group.id}`}>
-                  <Card className="bg-[#0c0c0e] border-white/5 hover:border-white/10 transition-all rounded-2xl p-5 group flex justify-between items-center">
-                    <div className="space-y-1 overflow-hidden">
-                      <h3 className="font-bold text-white uppercase tracking-tight truncate">{group.group_name}</h3>
-                      <p className="text-[10px] text-zinc-600 font-mono uppercase truncate">
-                        {group.names.slice(0, 3).join(", ")}{group.names.length > 3 && "..."}
+                  <Card className="bg-[#0c0c0e] border border-white/5 hover:border-white/20 transition-all rounded-2xl p-5 group flex items-center justify-between">
+                    <div className="flex flex-col gap-1 overflow-hidden mr-4">
+                      <h3 className="font-bold text-white uppercase tracking-tight truncate text-sm">{group.group_name}</h3>
+                      <p className="text-[10px] text-zinc-500 font-mono uppercase truncate">
+                        {group.names.join(", ")}
                       </p>
                     </div>
-                    <ChevronRight size={16} className="text-zinc-800 group-hover:text-white transition-colors shrink-0 ml-4" />
+                    <div className="w-8 h-8 bg-zinc-900 rounded-full flex items-center justify-center shrink-0 group-hover:bg-white group-hover:text-black transition-colors">
+                      <ChevronRight size={14} />
+                    </div>
                   </Card>
                 </Link>
               ))

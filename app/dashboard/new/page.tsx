@@ -42,7 +42,7 @@ function BillSplitterContent() {
   const [step, setStep] = useState<Step>("NAMES");
   const [people, setPeople] = useState<string[]>([]);
   const [newName, setNewName] = useState("");
-  const [sessionName, setSessionName] = useState(""); // NEW: Session Name Input
+  const [sessionName, setSessionName] = useState("");
   const [items, setItems] = useState<ReceiptData | null>(null);
   const [includeTax, setIncludeTax] = useState(true);
   const [instruction, setInstruction] = useState("");
@@ -106,7 +106,6 @@ function BillSplitterContent() {
   };
 
   const handleStartScanning = async () => {
-    // Only save group if user is logged in AND it's not already a loaded group
     const isLoadedGroup = !!searchParams.get('group_id');
     if (saveThisGroup && groupName && people.length > 0 && user && !isLoadedGroup) {
       await supabase.from("saved_groups").insert({
@@ -125,7 +124,17 @@ function BillSplitterContent() {
     formData.append("file", e.target.files[0]);
 
     try {
-      const res = await fetch(`${API_URL}/scan`, { method: "POST", body: formData });
+      // Add timeout for image scan as well
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+      const res = await fetch(`${API_URL}/scan`, { 
+        method: "POST", 
+        body: formData,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
       const data = await res.json();
       if (!data.items || data.items.length === 0) {
         alert("No items detected. Try a clearer photo.");
@@ -135,7 +144,7 @@ function BillSplitterContent() {
       setItems(data);
       setStep("REVIEW");
     } catch (err) {
-      alert("Connection error. Try again.");
+      alert("Connection error or timeout. Try again.");
     }
     setLoading(false);
   };
@@ -143,6 +152,10 @@ function BillSplitterContent() {
   const handleSplit = async () => {
     setLoading(true);
     try {
+      // 1. Setup Timeout (30 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); 
+
       const res = await fetch(`${API_URL}/split`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -152,7 +165,12 @@ function BillSplitterContent() {
           people_list: people,
           apply_tax: includeTax,
         }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
+
+      if (!res.ok) throw new Error(`Server Error: ${res.status}`);
 
       const data = await res.json();
       const jsonMatch = data.result.match(/\[[\s\S]*\]/);
@@ -163,17 +181,11 @@ function BillSplitterContent() {
         setSplitResult(data.result);
 
         if (user) {
-            // --- NEW NAMING LOGIC ---
-            let finalTitle = sessionName.trim(); // 1. Try input name
-
+            let finalTitle = sessionName.trim();
             if (!finalTitle) {
-                 // 2. If empty, get count from DB
-                 const { data: userBills } = await supabase
-                .from("bill_history")
-                .select("id")
-                .eq("user_id", user.id);
-                const sessionNum = (userBills?.length || 0) + 1;
-                finalTitle = `Session ${sessionNum}`;
+                 const { data: userBills } = await supabase.from("bill_history").select("id").eq("user_id", user.id);
+                 const sessionNum = (userBills?.length || 0) + 1;
+                 finalTitle = `Session ${sessionNum}`;
             }
 
             await supabase.from("bill_history").insert({
@@ -188,8 +200,12 @@ function BillSplitterContent() {
       } else {
         alert("Split failed: AI response format invalid.");
       }
-    } catch (err) {
-      alert("Split failed: Connection error.");
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        alert("Split timed out. The server is waking up, please try clicking Split again.");
+      } else {
+        alert("Split failed: Connection error.");
+      }
     }
     setLoading(false);
   };
@@ -209,7 +225,6 @@ function BillSplitterContent() {
             <p className="text-slate-500 text-xs uppercase tracking-widest font-mono">Step 1 of 3</p>
           </div>
           
-          {/* NEW: Session Name Input */}
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest ml-1">Session Name (Optional)</Label>
             <Input 
@@ -226,7 +241,7 @@ function BillSplitterContent() {
                 <Input
                   disabled={!isCreator}
                   className="bg-[#141416] border-white/5 focus:ring-1 ring-white/20 h-11 text-white"
-                  placeholder="Enter person's name..."
+                  placeholder="Enter name..."
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addPerson()}
@@ -246,7 +261,6 @@ function BillSplitterContent() {
                 ))}
               </div>
 
-              {/* Only show "Save Group" if not guest AND not already loaded from a group */}
               {!isGuest && !searchParams.get('group_id') && (
                 <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between px-1">
@@ -371,7 +385,10 @@ function BillSplitterContent() {
                 }}>
                   <Share2 className="w-4 h-4 mr-2" /> Share via WhatsApp
                 </Button>
-                <Button variant="outline" className="w-full h-12 border-white/5 text-zinc-500 font-bold rounded-xl uppercase tracking-widest text-[10px]" onClick={() => router.push("/dashboard")}>
+                <Button variant="outline" className="w-full h-12 border-white/5 text-zinc-500 font-bold rounded-xl uppercase tracking-widest text-[10px]" onClick={() => {
+                    router.refresh(); // REFRESH DATA
+                    router.push("/dashboard");
+                }}>
                   Finish Session
                 </Button>
               </div>
