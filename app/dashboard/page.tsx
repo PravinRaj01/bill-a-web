@@ -15,7 +15,6 @@ export default function DashboardPage() {
     const fetchGroups = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        // Fetch groups ordered by newest first
         const { data } = await supabase
           .from('saved_groups')
           .select('*')
@@ -31,10 +30,11 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-black text-white p-6 pb-24 md:p-10 max-w-md mx-auto animate-in fade-in">
 
       <div className="space-y-8">
-        {/* New Session Button */}
+        {/* New Session Button - MASSIVE ICON */}
         <Link href="/dashboard/new" className="block">
-          <Button className="w-full h-48 bg-white text-black hover:bg-zinc-200 rounded-[2.5rem] flex flex-col gap-4 group transition-all active:scale-95 shadow-2xl border-0">
-            <Plus size={52} strokeWidth={3.5} className="group-hover:scale-110 transition-transform duration-300" />
+          <Button className="w-full h-48 bg-white text-black hover:bg-zinc-200 rounded-[2.5rem] flex flex-col items-center justify-center gap-6 group transition-all active:scale-95 shadow-2xl border-0">
+            {/* Increased size to 72 */}
+            <Plus size={72} strokeWidth={3} className="group-hover:scale-110 transition-transform duration-300" />
             <span className="text-2xl font-black uppercase tracking-tighter">New Session</span>
           </Button>
         </Link>
@@ -76,19 +76,23 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {/* GROUPS LIST: Spacing Fixed */}
           <div className="space-y-4">
             {groups.length > 0 ? (
               groups.map((group) => (
                 <Link key={group.id} href={`/dashboard/new?group_id=${group.id}`}>
-                  <Card className="bg-[#0c0c0e] border border-white/5 hover:border-white/20 transition-all rounded-3xl p-4 group flex items-center justify-between">
-                    <div className="flex flex-col gap-1 overflow-hidden mr-4">
-                      <h3 className="font-bold text-white uppercase tracking-tight truncate text-sm">{group.group_name}</h3>
-                      <p className="text-[10px] text-zinc-500 font-mono uppercase truncate">
+                  {/* Added items-center explicitly to the Card */}
+                  <Card className="bg-[#0c0c0e] border border-white/5 hover:border-white/20 transition-all rounded-3xl p-4 group flex items-center justify-between h-[88px]">
+                    
+                    {/* Text Container: Added justify-center to force vertical centering */}
+                    <div className="flex flex-col justify-center gap-1 overflow-hidden mr-4 h-full">
+                      <h3 className="font-bold text-white uppercase tracking-tight truncate text-sm leading-none">
+                        {group.group_name}
+                      </h3>
+                      <p className="text-[10px] text-zinc-500 font-mono uppercase truncate leading-none pt-1">
                         {group.names.join(", ")}
                       </p>
                     </div>
-                    {/* Icon container size increased for better spacing */}
+
                     <div className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center shrink-0 group-hover:bg-white group-hover:text-black transition-colors">
                       <ChevronRight size={16} />
                     </div>
