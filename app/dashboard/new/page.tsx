@@ -32,7 +32,7 @@ interface ReceiptData { items: ReceiptItem[]; tax: number; total: number; curren
 interface SplitRecord { name: string; amount: number; items: string; }
 type Step = "NAMES" | "SCAN" | "REVIEW" | "SUMMARY";
 
-const API_URL = "https://favourable-eunice-pravinraj-code-24722b81.koyeb.app/";
+const API_URL = "https://favourable-eunice-pravinraj-code-24722b81.koyeb.app";
 
 function BillSplitterContent() {
   const router = useRouter();
