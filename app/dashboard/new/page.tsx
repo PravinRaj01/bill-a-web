@@ -24,6 +24,8 @@ import {
   ScrollText,
   ChevronUp,
   ChevronDown,
+  User,
+  UserX
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 
@@ -67,8 +69,14 @@ function BillSplitterContent() {
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) { setUser(session.user); setIsGuest(false); } 
-      else { setIsGuest(true); }
+      if (session) { 
+        console.log("User Logged In:", session.user.email);
+        setUser(session.user); 
+        setIsGuest(false); 
+      } else { 
+        console.log("User is Guest (Not Logged In)");
+        setIsGuest(true); 
+      }
     };
     checkUser();
   }, [supabase]);
@@ -133,7 +141,7 @@ function BillSplitterContent() {
     formData.append("file", file);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout for vision model
+    const timeoutId = setTimeout(() => controller.abort(), 45000); 
 
     try {
       const res = await fetch(`${API_URL}/scan`, { 
@@ -170,7 +178,6 @@ function BillSplitterContent() {
         alert("Failed to scan receipt. Please check your connection and try again.");
       }
       
-      // Reset inputs on error to allow retry
       if (fileInputRef.current) fileInputRef.current.value = "";
       if (galleryRef.current) galleryRef.current.value = "";
     } finally {
@@ -202,30 +209,23 @@ function BillSplitterContent() {
 
       const data = await res.json();
       
-      // --- NEW ROBUST JSON PARSING (Handles Object vs Array) ---
+      // --- ROBUST JSON PARSING ---
       try {
-        // Clean markdown if present
         const cleanJson = data.result.replace(/```json/g, "").replace(/```/g, "").trim();
         const parsedResult = JSON.parse(cleanJson);
 
-        // Check 1: New Format ({ splits: [], reasoning: "" })
+        // Check 1: New Format
         if (parsedResult.splits && Array.isArray(parsedResult.splits)) {
             setStructuredSplit(parsedResult.splits);
             setSplitResult(parsedResult.reasoning || "Calculation complete.");
-            
-            // Save to DB
-            if (user) {
-                await saveToHistory(parsedResult.splits, parsedResult.reasoning || data.result);
-            }
+            await attemptSave(parsedResult.splits, parsedResult.reasoning || data.result);
             setStep("SUMMARY");
         } 
-        // Check 2: Legacy Format (Just Array [])
+        // Check 2: Legacy Format
         else if (Array.isArray(parsedResult)) {
             setStructuredSplit(parsedResult);
             setSplitResult("Split successful.");
-            if (user) {
-                await saveToHistory(parsedResult, data.result);
-            }
+            await attemptSave(parsedResult, data.result);
             setStep("SUMMARY");
         } 
         else {
@@ -249,8 +249,19 @@ function BillSplitterContent() {
     }
   };
 
-  // Helper to save history
+  // Helper to handle saving logic with user feedback
+  const attemptSave = async (splitData: any, log: string) => {
+    if (user) {
+        await saveToHistory(splitData, log);
+    } else {
+        // ALERT THE USER IF THEY ARE A GUEST
+        console.warn("Guest mode: History not saved.");
+    }
+  };
+
   const saveToHistory = async (splitData: any, log: string) => {
+     console.log("Saving history for user:", user.id);
+
      let finalTitle = sessionName.trim();
      if (!finalTitle) {
          const { data: userBills } = await supabase.from("bill_history").select("id").eq("user_id", user.id);
@@ -258,18 +269,35 @@ function BillSplitterContent() {
          finalTitle = `Session ${sessionNum}`;
      }
 
-     // --- THE FIX IS HERE ---
-     await supabase.from("bill_history").insert({
+     const { error } = await supabase.from("bill_history").insert({
          user_id: user.id,
          bill_title: finalTitle,
          total_amount: displayedTotal,
-         currency: symbol,
+         currency: symbol, 
+         data: splitData,
          reasoning_log: log,
      });
+
+     if (error) {
+         console.error("Supabase Save Error:", error);
+         alert(`Database Error: ${error.message}\n\nTip: Did you run the SQL to add the 'currency' column?`);
+     } else {
+         console.log("History saved successfully!");
+     }
   };
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full mb-20 animate-in fade-in duration-300">
+      
+      {/* DEBUG: USER STATUS INDICATOR */}
+      <div className="absolute top-4 right-4 text-[10px] font-mono opacity-50 flex items-center gap-2">
+        {user ? (
+            <span className="text-green-500 flex items-center gap-1"><User size={10}/> Logged In</span>
+        ) : (
+            <span className="text-red-500 flex items-center gap-1"><UserX size={10}/> Guest Mode (No Save)</span>
+        )}
+      </div>
+
       {step !== "NAMES" && (
         <Button variant="ghost" className="w-fit p-0 h-auto hover:bg-transparent text-slate-500 font-bold uppercase tracking-widest text-[10px]" onClick={() => setStep("NAMES")}>
           <ChevronLeft size={14} className="mr-1" /> Back
@@ -353,7 +381,6 @@ function BillSplitterContent() {
               </div>
               <h3 className="text-lg font-bold uppercase tracking-tighter text-white">Scan Receipt</h3>
               
-              {/* FIXED: Added onClick reset to allow re-uploading same file after failure */}
               <input 
                   type="file" 
                   accept="image/*" 
