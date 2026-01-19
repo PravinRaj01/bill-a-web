@@ -25,7 +25,10 @@ import {
   ChevronUp,
   ChevronDown,
   User,
-  UserX
+  UserX,
+  Users,
+  Save,
+  RefreshCw
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 
@@ -56,8 +59,16 @@ function BillSplitterContent() {
   const [user, setUser] = useState<any>(null);
   const [isGuest, setIsGuest] = useState(false);
 
+  // GROUP SAVING STATE
   const [saveThisGroup, setSaveThisGroup] = useState(false);
+  const [updateGroup, setUpdateGroup] = useState(true); // Default to true for updates
   const [groupName, setGroupName] = useState("");
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [originalPeople, setOriginalPeople] = useState<string[]>([]); // To detect changes
+  
+  // GROUP LOADING UI STATE
+  const [savedGroups, setSavedGroups] = useState<any[]>([]);
+  const [showGroupList, setShowGroupList] = useState(false);
 
   const isCreator = true;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -66,21 +77,31 @@ function BillSplitterContent() {
   const subtotal = items?.items.reduce((sum, item) => sum + item.total_price, 0) || 0;
   const displayedTotal = includeTax ? items?.total || 0 : subtotal;
 
+  // 1. Check User & Fetch All Saved Groups
   useEffect(() => {
-    const checkUser = async () => {
+    const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) { 
-        console.log("User Logged In:", session.user.email);
         setUser(session.user); 
-        setIsGuest(false); 
+        setIsGuest(false);
+        
+        // Fetch groups for the dropdown
+        const { data: groups } = await supabase
+            .from('saved_groups')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .order('created_at', { ascending: false });
+        
+        if (groups) setSavedGroups(groups);
+
       } else { 
-        console.log("User is Guest (Not Logged In)");
         setIsGuest(true); 
       }
     };
-    checkUser();
+    init();
   }, [supabase]);
 
+  // 2. Handle URL Params (Initial Load)
   useEffect(() => {
     const namesParam = searchParams.get("names");
     const groupId = searchParams.get("group_id");
@@ -90,15 +111,35 @@ function BillSplitterContent() {
       setPeople(loadedNames);
     } else if (groupId) {
       const loadGroup = async () => {
-        const { data } = await supabase.from("saved_groups").select("names, group_name").eq("id", groupId).single();
+        const { data } = await supabase.from("saved_groups").select("names, group_name, id").eq("id", groupId).single();
         if (data) {
           setPeople(data.names);
           setGroupName(data.group_name);
+          setActiveGroupId(data.id);
+          setOriginalPeople(data.names); // Store original state
         }
       };
       loadGroup();
     }
   }, [searchParams, supabase]);
+
+  // Helper: Detect if group has changed
+  const hasGroupChanged = () => {
+      if (!activeGroupId) return false;
+      // Simple comparison: check if length differs or if any name is missing
+      if (people.length !== originalPeople.length) return true;
+      const sortedPeople = [...people].sort();
+      const sortedOriginal = [...originalPeople].sort();
+      return JSON.stringify(sortedPeople) !== JSON.stringify(sortedOriginal);
+  };
+
+  const loadSavedGroup = (group: any) => {
+      setPeople(group.names);
+      setGroupName(group.group_name);
+      setActiveGroupId(group.id);
+      setOriginalPeople(group.names);
+      setShowGroupList(false); // Close dropdown
+  };
 
   const symbol = items?.currency || "RM";
 
@@ -115,14 +156,23 @@ function BillSplitterContent() {
   };
 
   const handleStartScanning = async () => {
-    const isLoadedGroup = !!searchParams.get('group_id');
-    if (saveThisGroup && groupName && people.length > 0 && user && !isLoadedGroup) {
-      await supabase.from("saved_groups").insert({
-        user_id: user.id,
-        group_name: groupName,
-        names: people,
-      });
+    // LOGIC: Save or Update Group
+    if (user && people.length > 0) {
+        if (activeGroupId && hasGroupChanged() && updateGroup) {
+            // CASE A: Update existing group
+             await supabase.from("saved_groups")
+                .update({ names: people })
+                .eq("id", activeGroupId);
+        } else if (!activeGroupId && saveThisGroup && groupName) {
+            // CASE B: Insert new group
+            await supabase.from("saved_groups").insert({
+                user_id: user.id,
+                group_name: groupName,
+                names: people,
+            });
+        }
     }
+
     setStep("SCAN");
   };
 
@@ -130,7 +180,6 @@ function BillSplitterContent() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Basic client-side validation
     if (!file.type.startsWith("image/")) {
         alert("Please upload a valid image file (JPG, PNG).");
         return;
@@ -157,11 +206,9 @@ function BillSplitterContent() {
 
       const data = await res.json();
       
-      // Robust check for empty/invalid receipts (Fixing the "Selfie" issue)
       if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
         alert("Could not detect any receipt items. \n\nPlease ensure:\n1. The photo is clear and well-lit\n2. It is a valid receipt (not a random selfie!)\n3. Prices and item names are visible.");
         setLoading(false);
-        // Reset inputs to allow immediate retry
         if (fileInputRef.current) fileInputRef.current.value = "";
         if (galleryRef.current) galleryRef.current.value = "";
         return;
@@ -188,7 +235,7 @@ function BillSplitterContent() {
   const handleSplit = async () => {
     setLoading(true);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
 
     try {
       const res = await fetch(`${API_URL}/split`, {
@@ -209,19 +256,16 @@ function BillSplitterContent() {
 
       const data = await res.json();
       
-      // --- ROBUST JSON PARSING ---
       try {
         const cleanJson = data.result.replace(/```json/g, "").replace(/```/g, "").trim();
         const parsedResult = JSON.parse(cleanJson);
 
-        // Check 1: New Format
         if (parsedResult.splits && Array.isArray(parsedResult.splits)) {
             setStructuredSplit(parsedResult.splits);
             setSplitResult(parsedResult.reasoning || "Calculation complete.");
             await attemptSave(parsedResult.splits, parsedResult.reasoning || data.result);
             setStep("SUMMARY");
         } 
-        // Check 2: Legacy Format
         else if (Array.isArray(parsedResult)) {
             setStructuredSplit(parsedResult);
             setSplitResult("Split successful.");
@@ -249,19 +293,13 @@ function BillSplitterContent() {
     }
   };
 
-  // Helper to handle saving logic with user feedback
   const attemptSave = async (splitData: any, log: string) => {
     if (user) {
         await saveToHistory(splitData, log);
-    } else {
-        // ALERT THE USER IF THEY ARE A GUEST
-        console.warn("Guest mode: History not saved.");
     }
   };
 
   const saveToHistory = async (splitData: any, log: string) => {
-     console.log("Saving history for user:", user.id);
-
      let finalTitle = sessionName.trim();
      if (!finalTitle) {
          const { data: userBills } = await supabase.from("bill_history").select("id").eq("user_id", user.id);
@@ -280,24 +318,13 @@ function BillSplitterContent() {
 
      if (error) {
          console.error("Supabase Save Error:", error);
-         alert(`Database Error: ${error.message}\n\nTip: Did you run the SQL to add the 'currency' column?`);
-     } else {
-         console.log("History saved successfully!");
+         alert(`Failed to save history: ${error.message}`);
      }
   };
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full mb-20 animate-in fade-in duration-300">
       
-      {/* DEBUG: USER STATUS INDICATOR */}
-      <div className="absolute top-4 right-4 text-[10px] font-mono opacity-50 flex items-center gap-2">
-        {user ? (
-            <span className="text-green-500 flex items-center gap-1"><User size={10}/> Logged In</span>
-        ) : (
-            <span className="text-red-500 flex items-center gap-1"><UserX size={10}/> Guest Mode (No Save)</span>
-        )}
-      </div>
-
       {step !== "NAMES" && (
         <Button variant="ghost" className="w-fit p-0 h-auto hover:bg-transparent text-slate-500 font-bold uppercase tracking-widest text-[10px]" onClick={() => setStep("NAMES")}>
           <ChevronLeft size={14} className="mr-1" /> Back
@@ -311,14 +338,44 @@ function BillSplitterContent() {
             <p className="text-slate-500 text-xs uppercase tracking-widest font-mono">Step 1 of 3</p>
           </div>
           
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest ml-1">Session Name (Optional)</Label>
-            <Input 
-                placeholder="e.g. Friday Dinner" 
-                className="bg-[#0c0c0e] border-white/5 h-12 rounded-xl text-white font-bold"
-                value={sessionName}
-                onChange={(e) => setSessionName(e.target.value)}
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-zinc-500 tracking-widest ml-1">Session Name (Optional)</Label>
+                <Input 
+                    placeholder="e.g. Friday Dinner" 
+                    className="bg-[#0c0c0e] border-white/5 h-12 rounded-xl text-white font-bold"
+                    value={sessionName}
+                    onChange={(e) => setSessionName(e.target.value)}
+                />
+            </div>
+
+            {/* --- NEW: Collapsible Saved Groups Dropdown --- */}
+            {!isGuest && savedGroups.length > 0 && (
+                <div className="bg-[#0c0c0e] border border-white/5 rounded-2xl overflow-hidden transition-all">
+                    <button 
+                        onClick={() => setShowGroupList(!showGroupList)}
+                        className="w-full flex items-center justify-between p-3 px-4 text-xs font-bold text-zinc-400 hover:text-white hover:bg-white/5 transition-colors uppercase tracking-widest"
+                    >
+                        <span className="flex items-center gap-2"><Users size={14}/> Load Saved Group</span>
+                        {showGroupList ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                    </button>
+                    
+                    {showGroupList && (
+                        <div className="max-h-48 overflow-y-auto border-t border-white/5 bg-black/40">
+                            {savedGroups.map((group) => (
+                                <button
+                                    key={group.id}
+                                    onClick={() => loadSavedGroup(group)}
+                                    className="w-full text-left p-3 px-4 text-sm text-zinc-300 hover:bg-white/10 hover:text-white border-b border-white/5 last:border-0 flex justify-between items-center group"
+                                >
+                                    <span className="font-medium">{group.group_name}</span>
+                                    <span className="text-[10px] text-zinc-600 font-mono group-hover:text-zinc-400">{group.names.length} people</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
           </div>
 
           <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl rounded-3xl">
@@ -347,19 +404,45 @@ function BillSplitterContent() {
                 ))}
               </div>
 
-              {!isGuest && !searchParams.get('group_id') && (
+              {!isGuest && (
                 <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between px-1">
-                    <span className="text-xs text-slate-400 font-medium tracking-tight">Save this group?</span>
-                    <Switch checked={saveThisGroup} onCheckedChange={setSaveThisGroup} />
-                  </div>
-                  {saveThisGroup && (
-                    <Input 
-                      placeholder="Group Name (e.g. Weekend Crew)" 
-                      value={groupName}
-                      onChange={(e) => setGroupName(e.target.value)}
-                      className="bg-[#141416] border-white/5 h-10 text-xs text-white"
-                    />
+                  {/* --- NEW: Dynamic Save/Update Logic --- */}
+                  {activeGroupId && hasGroupChanged() ? (
+                      // CASE 1: Updating an existing group
+                      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 animate-in fade-in">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <RefreshCw size={14} className="text-amber-500"/>
+                                <span className="text-xs text-amber-500 font-bold uppercase tracking-tight">Update saved group?</span>
+                            </div>
+                            <Switch checked={updateGroup} onCheckedChange={setUpdateGroup} className="data-[state=checked]:bg-amber-500"/>
+                          </div>
+                          <p className="text-[10px] text-zinc-500 mt-1 pl-6">
+                              Update <strong>{groupName}</strong> with these changes?
+                          </p>
+                      </div>
+                  ) : !activeGroupId ? (
+                      // CASE 2: Saving a completely new group
+                      <>
+                        <div className="flex items-center justify-between px-1">
+                            <span className="text-xs text-slate-400 font-medium tracking-tight">Save this group?</span>
+                            <Switch checked={saveThisGroup} onCheckedChange={setSaveThisGroup} />
+                        </div>
+                        {saveThisGroup && (
+                            <Input 
+                            placeholder="Group Name (e.g. Weekend Crew)" 
+                            value={groupName}
+                            onChange={(e) => setGroupName(e.target.value)}
+                            className="bg-[#141416] border-white/5 h-10 text-xs text-white"
+                            />
+                        )}
+                      </>
+                  ) : (
+                      // CASE 3: Loaded group but NO changes (Show status)
+                       <div className="flex items-center justify-center gap-2 p-2 opacity-50">
+                            <Users size={12} className="text-zinc-500"/>
+                            <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Loaded: {groupName}</span>
+                       </div>
                   )}
                 </div>
               )}
