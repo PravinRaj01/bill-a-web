@@ -6,14 +6,14 @@ import { Receipt, Calendar, ArrowRight, Check } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/utils/supabase/client";
-import { useRouter } from "next/navigation"; // Added router
+import { useRouter } from "next/navigation";
 
 export default function HistoryList({ initialHistory }: { initialHistory: any[] }) {
   const [history, setHistory] = useState(initialHistory);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
   const supabase = createClient();
-  const router = useRouter(); // Initialize router
+  const router = useRouter();
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -28,7 +28,7 @@ export default function HistoryList({ initialHistory }: { initialHistory: any[] 
       setHistory(prev => prev.filter(item => !selectedIds.includes(item.id)));
       setSelectedIds([]);
       setIsEditMode(false);
-      router.refresh(); // Refresh server data
+      router.refresh();
     }
   };
 
@@ -40,8 +40,8 @@ export default function HistoryList({ initialHistory }: { initialHistory: any[] 
     const { error } = await supabase.from('bill_history').delete().eq('user_id', user.id);
     if (!error) {
       setHistory([]);
-      setIsEditMode(false); // FIXED: Close edit mode
-      router.refresh(); // Refresh server data
+      setIsEditMode(false);
+      router.refresh();
     }
   };
 
@@ -97,7 +97,10 @@ export default function HistoryList({ initialHistory }: { initialHistory: any[] 
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="font-mono font-bold text-white text-sm">RM{bill.total_amount.toFixed(2)}</div>
+                      {/* UPDATED: Dynamically uses the stored currency or defaults to RM */}
+                      <div className="font-mono font-bold text-white text-sm">
+                        {bill.currency || 'RM'}{bill.total_amount.toFixed(2)}
+                      </div>
                       {!isEditMode && <div className="text-[9px] text-zinc-700 uppercase font-black flex items-center justify-end gap-1 group-hover:text-white transition-colors">Details <ArrowRight className="w-3 h-3" /></div>}
                     </div>
                   </Link>
