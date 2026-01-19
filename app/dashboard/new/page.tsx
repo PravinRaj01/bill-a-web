@@ -149,7 +149,7 @@ function BillSplitterContent() {
 
       const data = await res.json();
       
-      // Robust check for empty/invalid receipts
+      // Robust check for empty/invalid receipts (Fixing the "Selfie" issue)
       if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
         alert("Could not detect any receipt items. \n\nPlease ensure:\n1. The photo is clear and well-lit\n2. It is a valid receipt (not a random selfie!)\n3. Prices and item names are visible.");
         setLoading(false);
@@ -202,45 +202,39 @@ function BillSplitterContent() {
 
       const data = await res.json();
       
-      // --- ROBUST JSON PARSING ---
-      const firstBracket = data.result.indexOf('[');
-      const lastBracket = data.result.lastIndexOf(']');
-      
-      if (firstBracket !== -1 && lastBracket !== -1) {
-        const jsonString = data.result.substring(firstBracket, lastBracket + 1);
-        try {
-            const parsedResult = JSON.parse(jsonString);
+      // --- NEW ROBUST JSON PARSING (Handles Object vs Array) ---
+      try {
+        // Clean markdown if present
+        const cleanJson = data.result.replace(/```json/g, "").replace(/```/g, "").trim();
+        const parsedResult = JSON.parse(cleanJson);
 
-            if (Array.isArray(parsedResult)) {
-                setStructuredSplit(parsedResult);
-                setSplitResult(data.result);
-
-                if (user) {
-                    let finalTitle = sessionName.trim();
-                    if (!finalTitle) {
-                        const { data: userBills } = await supabase.from("bill_history").select("id").eq("user_id", user.id);
-                        const sessionNum = (userBills?.length || 0) + 1;
-                        finalTitle = `Session ${sessionNum}`;
-                    }
-
-                    await supabase.from("bill_history").insert({
-                        user_id: user.id,
-                        bill_title: finalTitle,
-                        total_amount: displayedTotal,
-                        data: parsedResult,
-                        reasoning_log: data.result,
-                    });
-                }
-                setStep("SUMMARY");
-            } else {
-                throw new Error("AI response was not a list of splits.");
+        // Check 1: New Format ({ splits: [], reasoning: "" })
+        if (parsedResult.splits && Array.isArray(parsedResult.splits)) {
+            setStructuredSplit(parsedResult.splits);
+            setSplitResult(parsedResult.reasoning || "Calculation complete.");
+            
+            // Save to DB
+            if (user) {
+                await saveToHistory(parsedResult.splits, parsedResult.reasoning || data.result);
             }
-        } catch (parseError) {
-            console.error("JSON Parse Error:", parseError);
-            throw new Error("Failed to read AI response. Please try splitting again.");
+            setStep("SUMMARY");
+        } 
+        // Check 2: Legacy Format (Just Array [])
+        else if (Array.isArray(parsedResult)) {
+            setStructuredSplit(parsedResult);
+            setSplitResult("Split successful.");
+            if (user) {
+                await saveToHistory(parsedResult, data.result);
+            }
+            setStep("SUMMARY");
+        } 
+        else {
+            throw new Error("AI response was not a valid split list.");
         }
-      } else {
-        throw new Error("AI did not return a valid split format.");
+
+      } catch (parseError) {
+          console.error("JSON Parse Error:", parseError);
+          throw new Error("Failed to read AI response. Please try splitting again.");
       }
 
     } catch (err: any) {
@@ -253,6 +247,24 @@ function BillSplitterContent() {
     } finally {
         setLoading(false);
     }
+  };
+
+  // Helper to save history
+  const saveToHistory = async (splitData: any, log: string) => {
+     let finalTitle = sessionName.trim();
+     if (!finalTitle) {
+         const { data: userBills } = await supabase.from("bill_history").select("id").eq("user_id", user.id);
+         const sessionNum = (userBills?.length || 0) + 1;
+         finalTitle = `Session ${sessionNum}`;
+     }
+
+     await supabase.from("bill_history").insert({
+         user_id: user.id,
+         bill_title: finalTitle,
+         total_amount: displayedTotal,
+         data: splitData,
+         reasoning_log: log,
+     });
   };
 
   return (
@@ -339,7 +351,8 @@ function BillSplitterContent() {
                 <Receipt className="w-6 h-6 text-white opacity-40" />
               </div>
               <h3 className="text-lg font-bold uppercase tracking-tighter text-white">Scan Receipt</h3>
-              {/* Added onClick to reset value, allowing re-upload of same file if needed */}
+              
+              {/* FIXED: Added onClick reset to allow re-uploading same file after failure */}
               <input 
                   type="file" 
                   accept="image/*" 
@@ -357,6 +370,7 @@ function BillSplitterContent() {
                   onChange={handleFileUpload}
                   onClick={(e: any) => e.target.value = null}
               />
+              
               <div className="flex flex-col gap-2 px-4">
                 <Button className="w-full h-14 text-md bg-white text-black font-bold rounded-xl" onClick={() => fileInputRef.current?.click()} disabled={loading || !isCreator}>
                   {loading ? <Loader2 className="animate-spin mr-2" /> : "Snap Photo"}
