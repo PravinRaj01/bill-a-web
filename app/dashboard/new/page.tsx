@@ -258,11 +258,12 @@ function BillSplitterContent() {
          finalTitle = `Session ${sessionNum}`;
      }
 
+     // --- THE FIX IS HERE ---
      await supabase.from("bill_history").insert({
          user_id: user.id,
          bill_title: finalTitle,
          total_amount: displayedTotal,
-         data: splitData,
+         currency: symbol,
          reasoning_log: log,
      });
   };
