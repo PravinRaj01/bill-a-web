@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Receipt, Calendar, ArrowRight, Check } from "lucide-react";
 import Link from "next/link";
@@ -14,6 +14,11 @@ export default function HistoryList({ initialHistory }: { initialHistory: any[] 
   const [isEditMode, setIsEditMode] = useState(false);
   const supabase = createClient();
   const router = useRouter();
+
+  // Sync state if parent passes new data (Fixes "History not updating")
+  useEffect(() => {
+    setHistory(initialHistory);
+  }, [initialHistory]);
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -93,13 +98,14 @@ export default function HistoryList({ initialHistory }: { initialHistory: any[] 
                     <div className="flex-1 min-w-0">
                       <h3 className="font-bold text-zinc-100 uppercase tracking-tight truncate text-sm">{bill.bill_title}</h3>
                       <div className="flex items-center gap-2 text-[9px] text-zinc-600 font-mono mt-1 uppercase">
-                        <Calendar className="w-3 h-3" /> {new Date(bill.created_at).toLocaleDateString()}
+                        {/* FIX: Use toISOString() to prevent Hydration Mismatch Error */}
+                        <Calendar className="w-3 h-3" /> {new Date(bill.created_at).toISOString().split('T')[0]}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      {/* UPDATED: Dynamically uses the stored currency or defaults to RM */}
                       <div className="font-mono font-bold text-white text-sm">
-                        {bill.currency || 'RM'}{bill.total_amount.toFixed(2)}
+                        {/* FIX: Safety check for null amounts */}
+                        {bill.currency || 'RM'}{(bill.total_amount || 0).toFixed(2)}
                       </div>
                       {!isEditMode && <div className="text-[9px] text-zinc-700 uppercase font-black flex items-center justify-end gap-1 group-hover:text-white transition-colors">Details <ArrowRight className="w-3 h-3" /></div>}
                     </div>
