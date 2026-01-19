@@ -32,6 +32,7 @@ interface ReceiptData { items: ReceiptItem[]; tax: number; total: number; curren
 interface SplitRecord { name: string; amount: number; items: string; }
 type Step = "NAMES" | "SCAN" | "REVIEW" | "SUMMARY";
 
+// Ensure this matches your deployed backend URL (No trailing slash)
 const API_URL = "https://favourable-eunice-pravinraj-code-24722b81.koyeb.app";
 
 function BillSplitterContent() {
@@ -118,16 +119,23 @@ function BillSplitterContent() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.[0]) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Basic client-side validation
+    if (!file.type.startsWith("image/")) {
+        alert("Please upload a valid image file (JPG, PNG).");
+        return;
+    }
+
     setLoading(true);
     const formData = new FormData();
-    formData.append("file", e.target.files[0]);
+    formData.append("file", file);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout for vision model
 
     try {
-      // Add timeout for image scan as well
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
-
       const res = await fetch(`${API_URL}/scan`, { 
         method: "POST", 
         body: formData,
@@ -135,27 +143,47 @@ function BillSplitterContent() {
       });
       clearTimeout(timeoutId);
 
+      if (!res.ok) {
+          throw new Error(`Server responded with ${res.status}`);
+      }
+
       const data = await res.json();
-      if (!data.items || data.items.length === 0) {
-        alert("No items detected. Try a clearer photo.");
+      
+      // Robust check for empty/invalid receipts
+      if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
+        alert("Could not detect any receipt items. \n\nPlease ensure:\n1. The photo is clear and well-lit\n2. It is a valid receipt (not a random selfie!)\n3. Prices and item names are visible.");
         setLoading(false);
+        // Reset inputs to allow immediate retry
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        if (galleryRef.current) galleryRef.current.value = "";
         return;
       }
+
       setItems(data);
       setStep("REVIEW");
-    } catch (err) {
-      alert("Connection error or timeout. Try again.");
+
+    } catch (err: any) {
+      console.error("Scan Error:", err);
+      if (err.name === 'AbortError') {
+        alert("Scanning timed out. The server might be waking up (cold start). Please try again in a few seconds.");
+      } else {
+        alert("Failed to scan receipt. Please check your connection and try again.");
+      }
+      
+      // Reset inputs on error to allow retry
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (galleryRef.current) galleryRef.current.value = "";
+    } finally {
+        setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleSplit = async () => {
     setLoading(true);
-    try {
-      // 1. Setup Timeout (30 seconds)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout
 
+    try {
       const res = await fetch(`${API_URL}/split`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -173,41 +201,58 @@ function BillSplitterContent() {
       if (!res.ok) throw new Error(`Server Error: ${res.status}`);
 
       const data = await res.json();
-      const jsonMatch = data.result.match(/\[[\s\S]*\]/);
+      
+      // --- ROBUST JSON PARSING ---
+      const firstBracket = data.result.indexOf('[');
+      const lastBracket = data.result.lastIndexOf(']');
+      
+      if (firstBracket !== -1 && lastBracket !== -1) {
+        const jsonString = data.result.substring(firstBracket, lastBracket + 1);
+        try {
+            const parsedResult = JSON.parse(jsonString);
 
-      if (jsonMatch) {
-        const parsedResult = JSON.parse(jsonMatch[0]);
-        setStructuredSplit(parsedResult);
-        setSplitResult(data.result);
+            if (Array.isArray(parsedResult)) {
+                setStructuredSplit(parsedResult);
+                setSplitResult(data.result);
 
-        if (user) {
-            let finalTitle = sessionName.trim();
-            if (!finalTitle) {
-                 const { data: userBills } = await supabase.from("bill_history").select("id").eq("user_id", user.id);
-                 const sessionNum = (userBills?.length || 0) + 1;
-                 finalTitle = `Session ${sessionNum}`;
+                if (user) {
+                    let finalTitle = sessionName.trim();
+                    if (!finalTitle) {
+                        const { data: userBills } = await supabase.from("bill_history").select("id").eq("user_id", user.id);
+                        const sessionNum = (userBills?.length || 0) + 1;
+                        finalTitle = `Session ${sessionNum}`;
+                    }
+
+                    await supabase.from("bill_history").insert({
+                        user_id: user.id,
+                        bill_title: finalTitle,
+                        total_amount: displayedTotal,
+                        data: parsedResult,
+                        reasoning_log: data.result,
+                    });
+                }
+                setStep("SUMMARY");
+            } else {
+                throw new Error("AI response was not a list of splits.");
             }
-
-            await supabase.from("bill_history").insert({
-                user_id: user.id,
-                bill_title: finalTitle,
-                total_amount: displayedTotal,
-                data: parsedResult,
-                reasoning_log: data.result,
-            });
+        } catch (parseError) {
+            console.error("JSON Parse Error:", parseError);
+            throw new Error("Failed to read AI response. Please try splitting again.");
         }
-        setStep("SUMMARY");
       } else {
-        alert("Split failed: AI response format invalid.");
+        throw new Error("AI did not return a valid split format.");
       }
+
     } catch (err: any) {
+      console.error("Split Error:", err);
       if (err.name === 'AbortError') {
         alert("Split timed out. The server is waking up, please try clicking Split again.");
       } else {
-        alert("Split failed: Connection error.");
+        alert("Split failed. Please ensure your instructions are clear or try again.");
       }
+    } finally {
+        setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -294,8 +339,24 @@ function BillSplitterContent() {
                 <Receipt className="w-6 h-6 text-white opacity-40" />
               </div>
               <h3 className="text-lg font-bold uppercase tracking-tighter text-white">Scan Receipt</h3>
-              <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-              <input type="file" accept="image/*" ref={galleryRef} className="hidden" onChange={handleFileUpload} />
+              {/* Added onClick to reset value, allowing re-upload of same file if needed */}
+              <input 
+                  type="file" 
+                  accept="image/*" 
+                  capture="environment" 
+                  ref={fileInputRef} 
+                  className="hidden" 
+                  onChange={handleFileUpload}
+                  onClick={(e: any) => e.target.value = null} 
+              />
+              <input 
+                  type="file" 
+                  accept="image/*" 
+                  ref={galleryRef} 
+                  className="hidden" 
+                  onChange={handleFileUpload}
+                  onClick={(e: any) => e.target.value = null}
+              />
               <div className="flex flex-col gap-2 px-4">
                 <Button className="w-full h-14 text-md bg-white text-black font-bold rounded-xl" onClick={() => fileInputRef.current?.click()} disabled={loading || !isCreator}>
                   {loading ? <Loader2 className="animate-spin mr-2" /> : "Snap Photo"}
@@ -386,7 +447,7 @@ function BillSplitterContent() {
                   <Share2 className="w-4 h-4 mr-2" /> Share via WhatsApp
                 </Button>
                 <Button variant="outline" className="w-full h-12 border-white/5 text-zinc-500 font-bold rounded-xl uppercase tracking-widest text-[10px]" onClick={() => {
-                    router.refresh(); // REFRESH DATA
+                    router.refresh(); 
                     router.push("/dashboard");
                 }}>
                   Finish Session
