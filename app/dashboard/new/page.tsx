@@ -28,7 +28,9 @@ import {
   UserX,
   Users,
   Save,
-  RefreshCw
+  RefreshCw,
+  MessageSquare, // NEW IMPORT
+  Sparkles       // NEW IMPORT
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 
@@ -322,6 +324,28 @@ function BillSplitterContent() {
      }
   };
 
+  // --- NEW: Handle "Modify in Chat" ---
+  const handleModifyInChat = () => {
+    // 1. Save context for the chat page
+    const contextData = JSON.stringify({
+        items: items, 
+        people_list: people,
+        current_instruction: instruction
+    });
+    sessionStorage.setItem("billa_chat_context", contextData);
+
+    // 2. Create the prompt for the AI
+    const initialPrompt = instruction 
+        ? `I tried to split the bill with instruction: "${instruction}", but I need to make changes.` 
+        : `I split the bill equally, but I need to make specific adjustments.`;
+    
+    // 3. Save prompt to trigger auto-send on load
+    sessionStorage.setItem("billa_initial_prompt", initialPrompt);
+    
+    // 4. Go to chat
+    router.push(`/dashboard/chat`);
+  };
+
   return (
     <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full mb-20 animate-in fade-in duration-300">
       
@@ -349,7 +373,7 @@ function BillSplitterContent() {
                 />
             </div>
 
-            {/* --- NEW: Collapsible Saved Groups Dropdown --- */}
+            {/* --- Collapsible Saved Groups Dropdown --- */}
             {!isGuest && savedGroups.length > 0 && (
                 <div className="bg-[#0c0c0e] border border-white/5 rounded-2xl overflow-hidden transition-all">
                     <button 
@@ -406,7 +430,7 @@ function BillSplitterContent() {
 
               {!isGuest && (
                 <div className="space-y-3 pt-2">
-                  {/* --- NEW: Dynamic Save/Update Logic --- */}
+                  {/* --- Dynamic Save/Update Logic --- */}
                   {activeGroupId && hasGroupChanged() ? (
                       // CASE 1: Updating an existing group
                       <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 animate-in fade-in">
@@ -558,8 +582,19 @@ function BillSplitterContent() {
                   {showReasoning ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
                 {showReasoning && (
-                  <div className="px-6 pb-6 animate-in slide-in-from-top-2 duration-200">
+                  <div className="px-6 pb-6 animate-in slide-in-from-top-2 duration-200 space-y-4">
                     <div className="p-4 bg-black rounded-xl text-[10px] font-mono text-zinc-500 whitespace-pre-wrap leading-relaxed border border-white/5 max-h-60 overflow-y-auto italic text-left">{splitResult}</div>
+                    
+                    {/* --- NEW: MODIFY IN CHAT BUTTON --- */}
+                    <Button 
+                        variant="ghost" 
+                        onClick={handleModifyInChat}
+                        className="w-full h-10 border border-white/10 bg-white/5 text-xs text-white hover:bg-white/10 hover:text-white uppercase tracking-wider font-bold rounded-xl"
+                    >
+                        <MessageSquare size={14} className="mr-2 text-indigo-400"/>
+                        Modify with AI Chat
+                        <Sparkles size={12} className="ml-2 text-amber-400"/>
+                    </Button>
                   </div>
                 )}
               </div>
