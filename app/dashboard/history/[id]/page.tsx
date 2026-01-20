@@ -2,26 +2,26 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation"; // Import useParams
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { ChevronLeft, Calendar, Trash2, Play, Share2, Loader2 } from "lucide-react";
 
-export default function BillDetailPage({ params }: { params: { id: string } }) {
+export default function BillDetailPage() {
+  const params = useParams(); // <--- FIX: Get ID from the hook
+  const id = params?.id as string; // Safely extract string ID
+
   const [bill, setBill] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
   const router = useRouter();
 
-  // 1. Fetch Data Client-Side (to support Client Interaction)
+  // 1. Fetch Data Client-Side
   useEffect(() => {
+    if (!id) return; // Wait until ID is available
+
     const fetchBill = async () => {
-      // Params is a promise in Next.js 15, but usually accessible directly in older versions. 
-      // If you are on Next.js 15+, you might need `await params`. 
-      // Safe fallback:
-      const id = params.id; 
-      
       const { data, error } = await supabase
         .from('bill_history')
         .select('*')
@@ -29,6 +29,7 @@ export default function BillDetailPage({ params }: { params: { id: string } }) {
         .single();
       
       if (error || !data) {
+          console.error("Error fetching bill:", error);
           router.push('/dashboard/history');
       } else {
           setBill(data);
@@ -36,19 +37,19 @@ export default function BillDetailPage({ params }: { params: { id: string } }) {
       setLoading(false);
     };
     fetchBill();
-  }, [params.id, supabase, router]);
+  }, [id, supabase, router]);
 
   // 2. Handle Delete
   const handleDelete = async () => {
       const confirm = window.confirm("Are you sure you want to delete this history?");
       if (!confirm) return;
 
-      await supabase.from('bill_history').delete().eq('id', bill.id);
+      await supabase.from('bill_history').delete().eq('id', id);
       router.push('/dashboard/history');
       router.refresh();
   };
 
-  // 3. Handle Continue Session (The Magic Part)
+  // 3. Handle Continue Session
   const handleContinue = () => {
       if (!bill) return;
       
