@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, ChevronLeft, Bot, User, Loader2, CheckCircle2 } from "lucide-react";
+import { Send, Bot, User, Loader2, Save, X } from "lucide-react"; // Imported X for Cancel
 
 const API_URL = "https://favourable-eunice-pravinraj-code-24722b81.koyeb.app";
 
@@ -93,16 +93,19 @@ export default function ChatPage() {
     }
   };
 
-  const handleDone = () => {
+  // 1. CANCEL = Discard Changes
+  const handleCancel = () => {
+      router.back(); 
+  };
+
+  // 2. SAVE = Commit Changes
+  const handleSave = () => {
       if (latestSplit) {
-          // Save the result to session storage to be picked up by the main page
           sessionStorage.setItem("billa_chat_result", JSON.stringify({
               splits: latestSplit,
-              reasoning: messages[messages.length - 1].content // Use last AI reply as log
+              reasoning: messages[messages.length - 1].content 
           }));
           router.push("/dashboard/new?restore_from_chat=true");
-      } else {
-          router.back();
       }
   };
 
@@ -110,27 +113,37 @@ export default function ChatPage() {
     <div className="flex flex-col h-screen bg-black text-white max-w-xl mx-auto border-x border-white/5">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0c0c0e]">
-        <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-1">
-            <ChevronLeft />
-            </Button>
-            <div>
-                <h1 className="font-bold text-sm">Bill-a Assistant</h1>
-                <p className="text-[10px] text-zinc-500 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/> Online
-                </p>
-            </div>
+        
+        {/* LEFT: Cancel Button */}
+        <Button 
+            variant="ghost" 
+            onClick={handleCancel} 
+            className="h-8 text-zinc-400 hover:text-white hover:bg-white/10 text-xs font-bold uppercase tracking-wider px-2"
+        >
+            <X size={16} className="mr-1.5" /> Cancel
+        </Button>
+        
+        {/* CENTER: Status */}
+        <div className="text-center">
+            <h1 className="font-bold text-sm">Bill-a Assistant</h1>
+            <p className="text-[10px] text-zinc-500 flex items-center justify-center gap-1">
+               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/> Online
+            </p>
         </div>
         
-        {/* DONE BUTTON */}
-        {latestSplit && (
-            <Button 
-                onClick={handleDone}
-                className="h-8 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold uppercase tracking-wider rounded-lg"
-            >
-                <CheckCircle2 size={14} className="mr-1.5" /> Done
-            </Button>
-        )}
+        {/* RIGHT: Save Button (Only shows if there is a NEW split to save) */}
+        <div className="w-[84px] flex justify-end"> 
+            {latestSplit ? (
+                <Button 
+                    onClick={handleSave}
+                    className="h-8 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-lg shadow-indigo-900/20"
+                >
+                    <Save size={14} className="mr-1.5" /> Save
+                </Button>
+            ) : (
+                <div className="w-8" /> // Spacer to keep title centered
+            )}
+        </div>
       </div>
 
       {/* Chat Area */}
@@ -154,13 +167,13 @@ export default function ChatPage() {
                 </div>
 
                 {m.splitData && (
-                    <Card className="w-full bg-black border border-white/10 overflow-hidden animate-in zoom-in-95 mt-2">
+                    <Card className="w-full bg-black border border-white/10 overflow-hidden animate-in zoom-in-95 mt-2 shadow-2xl">
                         <div className="bg-white/5 px-3 py-2 border-b border-white/5 flex justify-between items-center">
                             <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Updated Bill</span>
                         </div>
                         <CardContent className="p-0">
                             {m.splitData.map((row: any, idx: number) => (
-                                <div key={idx} className="flex justify-between p-3 border-b border-white/5 text-xs last:border-0">
+                                <div key={idx} className="flex justify-between p-3 border-b border-white/5 text-xs last:border-0 hover:bg-white/5 transition-colors">
                                     <span className="font-medium text-white">{row.name}</span>
                                     <span className="font-mono text-zinc-400">{row.amount.toFixed(2)}</span>
                                 </div>
@@ -177,8 +190,9 @@ export default function ChatPage() {
                 <div className="w-6 h-6 rounded-full bg-zinc-800 flex items-center justify-center mt-1">
                   <Bot size={12} className="text-zinc-400" />
                 </div>
-                <div className="bg-[#1c1c1e] p-3 rounded-2xl rounded-tl-sm border border-white/5">
-                    <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
+                <div className="bg-[#1c1c1e] p-3 rounded-2xl rounded-tl-sm border border-white/5 flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin text-zinc-500" />
+                    <span className="text-xs text-zinc-500 animate-pulse">Thinking...</span>
                 </div>
              </div>
           )}
