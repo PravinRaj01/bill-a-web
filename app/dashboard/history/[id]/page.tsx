@@ -1,39 +1,86 @@
-import { createClient } from "@/utils/supabase/server";
-import { notFound, redirect } from "next/navigation";
+"use client";
+
+import { useEffect, useState } from "react";
+import { createClient } from "@/utils/supabase/client";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
-import { ChevronLeft, Calendar, Trash2, Play } from "lucide-react";
-import Link from "next/link";
-import { revalidatePath } from "next/cache";
 import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { ChevronLeft, Calendar, Trash2, Play, Share2, Loader2 } from "lucide-react";
 
-export default async function BillDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const supabase = await createClient();
-  
-  const { data: bill, error } = await supabase.from('bill_history').select('*').eq('id', id).single();
-  if (error || !bill) notFound();
+export default function BillDetailPage({ params }: { params: { id: string } }) {
+  const [bill, setBill] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
+  const router = useRouter();
 
-  async function deleteBill() {
-    'use server'
-    const supabase = await createClient();
-    await supabase.from('bill_history').delete().eq('id', id);
-    revalidatePath('/dashboard/history');
-    redirect('/dashboard/history');
-  }
+  // 1. Fetch Data Client-Side (to support Client Interaction)
+  useEffect(() => {
+    const fetchBill = async () => {
+      // Params is a promise in Next.js 15, but usually accessible directly in older versions. 
+      // If you are on Next.js 15+, you might need `await params`. 
+      // Safe fallback:
+      const id = params.id; 
+      
+      const { data, error } = await supabase
+        .from('bill_history')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error || !data) {
+          router.push('/dashboard/history');
+      } else {
+          setBill(data);
+      }
+      setLoading(false);
+    };
+    fetchBill();
+  }, [params.id, supabase, router]);
 
-  // Generate names list for the "Continue" link
-  const names = bill.data.map((p: any) => p.name).join(',');
+  // 2. Handle Delete
+  const handleDelete = async () => {
+      const confirm = window.confirm("Are you sure you want to delete this history?");
+      if (!confirm) return;
+
+      await supabase.from('bill_history').delete().eq('id', bill.id);
+      router.push('/dashboard/history');
+      router.refresh();
+  };
+
+  // 3. Handle Continue Session (The Magic Part)
+  const handleContinue = () => {
+      if (!bill) return;
+      
+      // Save data to session storage to pass it to the main app
+      sessionStorage.setItem("billa_restore_data", JSON.stringify({
+          data: bill.data, // This contains { split, items, people } if it's a new save
+          currency: bill.currency
+      }));
+      
+      // Redirect to main app with restore flag
+      router.push("/dashboard/new?restore_from_history=true");
+  };
+
+  if (loading) return <div className="flex h-screen items-center justify-center bg-black text-white"><Loader2 className="animate-spin" /></div>;
+  if (!bill) return null;
+
+  // Handle both Old (Array) and New (Object) data formats
+  const splitData = Array.isArray(bill.data) 
+      ? bill.data 
+      : (bill.data.split || bill.data.splits || []);
+
+  const symbol = bill.currency || "RM";
 
   return (
-    <div className="p-6 md:p-10 max-w-2xl mx-auto space-y-6 mb-20">
+    <div className="p-6 md:p-10 max-w-2xl mx-auto space-y-6 mb-20 animate-in fade-in">
       <div className="flex justify-between items-center">
-        <Link href="/dashboard/history" className="flex items-center text-[10px] text-zinc-500 hover:text-white transition-colors uppercase font-black tracking-widest">
+        <button onClick={() => router.back()} className="flex items-center text-[10px] text-zinc-500 hover:text-white transition-colors uppercase font-black tracking-widest">
           <ChevronLeft className="w-4 h-4 mr-1" /> Back
-        </Link>
-        <form action={deleteBill}>
-          <button className="text-zinc-800 hover:text-red-500 transition-colors p-2"><Trash2 className="w-5 h-5" /></button>
-        </form>
+        </button>
+        <button onClick={handleDelete} className="text-zinc-800 hover:text-red-500 transition-colors p-2">
+            <Trash2 className="w-5 h-5" />
+        </button>
       </div>
 
       <header className="flex justify-between items-start gap-4">
@@ -43,11 +90,14 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
             <Calendar className="w-3 h-3" /> {new Date(bill.created_at).toLocaleDateString()}
           </div>
         </div>
+        
         {/* CONTINUE SESSION BUTTON */}
-        <Button size="sm" className="bg-white text-black hover:bg-zinc-200 font-black uppercase text-[10px] h-10 px-4 rounded-xl shadow-xl" asChild>
-          <Link href={`/dashboard/new?names=${encodeURIComponent(names)}`}>
+        <Button 
+            size="sm" 
+            onClick={handleContinue}
+            className="bg-white text-black hover:bg-zinc-200 font-black uppercase text-[10px] h-10 px-4 rounded-xl shadow-xl"
+        >
             <Play className="w-3 h-3 mr-2" fill="currentColor" /> Continue
-          </Link>
         </Button>
       </header>
 
@@ -58,14 +108,24 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
         <CardContent className="p-0">
           <Table>
             <TableBody>
-              {bill.data.map((row: any, i: number) => (
+              {splitData.map((row: any, i: number) => (
                 <TableRow key={i} className="border-white/5 hover:bg-white/[0.01]">
                   <TableCell className="py-6 font-bold text-white px-8">{row.name}</TableCell>
-                  <TableCell className="text-right font-mono text-white text-xl px-8">RM{row.amount.toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-mono text-white text-xl px-8">{symbol}{row.amount.toFixed(2)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          
+          <div className="p-6">
+             <Button variant="outline" className="w-full h-12 border-white/5 text-zinc-500 hover:text-white font-bold rounded-xl uppercase tracking-widest text-[10px]" onClick={() => {
+                let text = `*Bill: ${bill.bill_title} (${symbol})*\n\n`;
+                splitData.forEach((r: any) => (text += `👤 *${r.name}*: ${symbol}${r.amount.toFixed(2)}\n`));
+                window.open(`whatsapp://send?text=${encodeURIComponent(text)}`);
+            }}>
+                <Share2 className="w-4 h-4 mr-2" /> Share WhatsApp
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

@@ -29,8 +29,8 @@ import {
   Users,
   Save,
   RefreshCw,
-  MessageSquare, // NEW IMPORT
-  Sparkles       // NEW IMPORT
+  MessageSquare, 
+  Sparkles      
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 
@@ -103,25 +103,77 @@ function BillSplitterContent() {
     init();
   }, [supabase]);
 
-  // 2. Handle URL Params (Initial Load)
+  // 2. Handle Restore Logic (From Chat or History) AND Initial Group Load
   useEffect(() => {
+    // A. RESTORE FROM CHAT (After clicking "Done" in chat)
+    const restoreFromChat = searchParams.get("restore_from_chat");
+    if (restoreFromChat) {
+        const chatResult = sessionStorage.getItem("billa_chat_result");
+        const context = sessionStorage.getItem("billa_chat_context"); 
+        
+        if (chatResult && context) {
+            const { splits, reasoning } = JSON.parse(chatResult);
+            const { items: origItems, people_list } = JSON.parse(context);
+            
+            // Restore State
+            setItems(origItems);
+            setPeople(people_list);
+            setStructuredSplit(splits);
+            setSplitResult(reasoning);
+            setStep("SUMMARY"); // Jump straight to summary
+            
+            // Clean up the result so it doesn't trigger again on refresh
+            sessionStorage.removeItem("billa_chat_result");
+        }
+    }
+
+    // B. RESTORE FROM HISTORY (After clicking "Continue" in History)
+    const restoreFromHistory = searchParams.get("restore_from_history");
+    if (restoreFromHistory) {
+        const historyData = sessionStorage.getItem("billa_restore_data");
+        if (historyData) {
+            const { data, currency } = JSON.parse(historyData);
+            
+            // Check if it's the new "Rich Format" (Object) or "Legacy Format" (Array)
+            if (data.items && data.split) {
+                // We have full data! Restore everything perfectly.
+                setItems(data.items);
+                setPeople(data.people || []);
+                setStructuredSplit(data.split);
+            } else {
+                // Legacy data: We only have the results. Mock the items to avoid crash.
+                const legacySplit = Array.isArray(data) ? data : data.splits || [];
+                setStructuredSplit(legacySplit);
+                setPeople(legacySplit.map((p:any) => p.name)); // Extract names
+                setItems({ items: [], total: 0, tax: 0, currency: currency }); // Mock
+            }
+            
+            setSplitResult(data.reasoning || "Restored from history.");
+            setStep("SUMMARY"); // Jump straight to summary
+            sessionStorage.removeItem("billa_restore_data");
+        }
+    }
+
+    // C. LOAD GROUP FROM URL (Standard flow)
     const namesParam = searchParams.get("names");
     const groupId = searchParams.get("group_id");
 
-    if (namesParam) {
-      const loadedNames = decodeURIComponent(namesParam).split(",");
-      setPeople(loadedNames);
-    } else if (groupId) {
-      const loadGroup = async () => {
-        const { data } = await supabase.from("saved_groups").select("names, group_name, id").eq("id", groupId).single();
-        if (data) {
-          setPeople(data.names);
-          setGroupName(data.group_name);
-          setActiveGroupId(data.id);
-          setOriginalPeople(data.names); // Store original state
+    if (!restoreFromChat && !restoreFromHistory) {
+        if (namesParam) {
+            const loadedNames = decodeURIComponent(namesParam).split(",");
+            setPeople(loadedNames);
+        } else if (groupId) {
+            const loadGroup = async () => {
+                const { data } = await supabase.from("saved_groups").select("names, group_name, id").eq("id", groupId).single();
+                if (data) {
+                setPeople(data.names);
+                setGroupName(data.group_name);
+                setActiveGroupId(data.id);
+                setOriginalPeople(data.names);
+                }
+            };
+            loadGroup();
         }
-      };
-      loadGroup();
     }
   }, [searchParams, supabase]);
 
@@ -301,6 +353,7 @@ function BillSplitterContent() {
     }
   };
 
+  // --- UPDATED: Save Full Rich Context ---
   const saveToHistory = async (splitData: any, log: string) => {
      let finalTitle = sessionName.trim();
      if (!finalTitle) {
@@ -309,12 +362,20 @@ function BillSplitterContent() {
          finalTitle = `Session ${sessionNum}`;
      }
 
+     // Construct Rich Payload
+     const richData = {
+         split: splitData,
+         items: items,    // Save original receipt!
+         people: people,  // Save people list!
+         reasoning: log
+     };
+
      const { error } = await supabase.from("bill_history").insert({
          user_id: user.id,
          bill_title: finalTitle,
          total_amount: displayedTotal,
          currency: symbol, 
-         data: splitData,
+         data: richData, // Save the Rich Object
          reasoning_log: log,
      });
 
@@ -324,7 +385,7 @@ function BillSplitterContent() {
      }
   };
 
-  // --- NEW: Handle "Modify in Chat" ---
+  // --- Handle "Modify in Chat" ---
   const handleModifyInChat = () => {
     // 1. Save context for the chat page
     const contextData = JSON.stringify({
