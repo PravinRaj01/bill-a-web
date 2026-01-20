@@ -25,9 +25,7 @@ import {
   ChevronUp,
   ChevronDown,
   User,
-  UserX,
   Users,
-  Save,
   RefreshCw,
   MessageSquare, 
   Sparkles      
@@ -39,7 +37,6 @@ interface ReceiptData { items: ReceiptItem[]; tax: number; total: number; curren
 interface SplitRecord { name: string; amount: number; items: string; }
 type Step = "NAMES" | "SCAN" | "REVIEW" | "SUMMARY";
 
-// Ensure this matches your deployed backend URL (No trailing slash)
 const API_URL = "https://favourable-eunice-pravinraj-code-24722b81.koyeb.app";
 
 function BillSplitterContent() {
@@ -63,10 +60,10 @@ function BillSplitterContent() {
 
   // GROUP SAVING STATE
   const [saveThisGroup, setSaveThisGroup] = useState(false);
-  const [updateGroup, setUpdateGroup] = useState(true); // Default to true for updates
+  const [updateGroup, setUpdateGroup] = useState(true); 
   const [groupName, setGroupName] = useState("");
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
-  const [originalPeople, setOriginalPeople] = useState<string[]>([]); // To detect changes
+  const [originalPeople, setOriginalPeople] = useState<string[]>([]); 
   
   // GROUP LOADING UI STATE
   const [savedGroups, setSavedGroups] = useState<any[]>([]);
@@ -86,16 +83,12 @@ function BillSplitterContent() {
       if (session) { 
         setUser(session.user); 
         setIsGuest(false);
-        
-        // Fetch groups for the dropdown
         const { data: groups } = await supabase
             .from('saved_groups')
             .select('*')
             .eq('user_id', session.user.id)
             .order('created_at', { ascending: false });
-        
         if (groups) setSavedGroups(groups);
-
       } else { 
         setIsGuest(true); 
       }
@@ -103,10 +96,14 @@ function BillSplitterContent() {
     init();
   }, [supabase]);
 
-  // 2. Handle Restore Logic (From Chat or History) AND Initial Group Load
+  // 2. MAIN RESTORE LOGIC
   useEffect(() => {
-    // A. RESTORE FROM CHAT (After clicking "Done" in chat)
     const restoreFromChat = searchParams.get("restore_from_chat");
+    const restoreFromHistory = searchParams.get("restore_from_history");
+    const namesParam = searchParams.get("names");
+    const groupId = searchParams.get("group_id");
+
+    // A. RESTORE FROM CHAT (User clicked "Save" in chat)
     if (restoreFromChat) {
         const chatResult = sessionStorage.getItem("billa_chat_result");
         const context = sessionStorage.getItem("billa_chat_context"); 
@@ -115,50 +112,52 @@ function BillSplitterContent() {
             const { splits, reasoning } = JSON.parse(chatResult);
             const { items: origItems, people_list } = JSON.parse(context);
             
-            // Restore State
             setItems(origItems);
             setPeople(people_list);
             setStructuredSplit(splits);
             setSplitResult(reasoning);
-            setStep("SUMMARY"); // Jump straight to summary
+            setStep("SUMMARY"); 
             
-            // Clean up the result so it doesn't trigger again on refresh
             sessionStorage.removeItem("billa_chat_result");
+            // Also update the snapshot so refreshing works
+            sessionStorage.setItem("billa_snapshot", JSON.stringify({
+                 items: origItems, people: people_list, structuredSplit: splits, splitResult: reasoning
+            }));
         }
+        return;
     }
 
-    // B. RESTORE FROM HISTORY (After clicking "Continue" in History)
-    const restoreFromHistory = searchParams.get("restore_from_history");
+    // B. RESTORE FROM HISTORY (User clicked "Continue" in History)
     if (restoreFromHistory) {
         const historyData = sessionStorage.getItem("billa_restore_data");
         if (historyData) {
             const { data, currency } = JSON.parse(historyData);
             
-            // Check if it's the new "Rich Format" (Object) or "Legacy Format" (Array)
             if (data.items && data.split) {
-                // We have full data! Restore everything perfectly.
                 setItems(data.items);
                 setPeople(data.people || []);
                 setStructuredSplit(data.split);
             } else {
-                // Legacy data: We only have the results. Mock the items to avoid crash.
                 const legacySplit = Array.isArray(data) ? data : data.splits || [];
                 setStructuredSplit(legacySplit);
-                setPeople(legacySplit.map((p:any) => p.name)); // Extract names
-                setItems({ items: [], total: 0, tax: 0, currency: currency }); // Mock
+                setPeople(legacySplit.map((p:any) => p.name));
+                setItems({ items: [], total: 0, tax: 0, currency: currency }); 
             }
             
             setSplitResult(data.reasoning || "Restored from history.");
-            setStep("SUMMARY"); // Jump straight to summary
+            setStep("SUMMARY");
             sessionStorage.removeItem("billa_restore_data");
+            // Clear snapshot so we don't mix old drafts
+            sessionStorage.removeItem("billa_snapshot");
         }
+        return;
     }
 
-    // C. LOAD GROUP FROM URL (Standard flow)
-    const namesParam = searchParams.get("names");
-    const groupId = searchParams.get("group_id");
-
-    if (!restoreFromChat && !restoreFromHistory) {
+    // C. NEW SESSION (URL Params)
+    if (namesParam || groupId) {
+        // Clear old snapshots because we are explicitly starting something new
+        sessionStorage.removeItem("billa_snapshot");
+        
         if (namesParam) {
             const loadedNames = decodeURIComponent(namesParam).split(",");
             setPeople(loadedNames);
@@ -174,13 +173,32 @@ function BillSplitterContent() {
             };
             loadGroup();
         }
+        return;
     }
+
+    // D. CANCEL/BACK BUTTON FALLBACK (Snapshot Restore)
+    // If we have no specific instructions, check if we have an active session snapshot
+    const snapshot = sessionStorage.getItem("billa_snapshot");
+    if (snapshot) {
+        try {
+            const data = JSON.parse(snapshot);
+            // Only restore if it looks valid
+            if (data.items && data.structuredSplit) {
+                setItems(data.items);
+                setPeople(data.people);
+                setStructuredSplit(data.structuredSplit);
+                setSplitResult(data.splitResult);
+                setStep("SUMMARY");
+            }
+        } catch (e) {
+            console.error("Failed to restore snapshot", e);
+        }
+    }
+
   }, [searchParams, supabase]);
 
-  // Helper: Detect if group has changed
   const hasGroupChanged = () => {
       if (!activeGroupId) return false;
-      // Simple comparison: check if length differs or if any name is missing
       if (people.length !== originalPeople.length) return true;
       const sortedPeople = [...people].sort();
       const sortedOriginal = [...originalPeople].sort();
@@ -192,7 +210,7 @@ function BillSplitterContent() {
       setGroupName(group.group_name);
       setActiveGroupId(group.id);
       setOriginalPeople(group.names);
-      setShowGroupList(false); // Close dropdown
+      setShowGroupList(false); 
   };
 
   const symbol = items?.currency || "RM";
@@ -210,15 +228,12 @@ function BillSplitterContent() {
   };
 
   const handleStartScanning = async () => {
-    // LOGIC: Save or Update Group
     if (user && people.length > 0) {
         if (activeGroupId && hasGroupChanged() && updateGroup) {
-            // CASE A: Update existing group
              await supabase.from("saved_groups")
                 .update({ names: people })
                 .eq("id", activeGroupId);
         } else if (!activeGroupId && saveThisGroup && groupName) {
-            // CASE B: Insert new group
             await supabase.from("saved_groups").insert({
                 user_id: user.id,
                 group_name: groupName,
@@ -226,7 +241,6 @@ function BillSplitterContent() {
             });
         }
     }
-
     setStep("SCAN");
   };
 
@@ -353,7 +367,6 @@ function BillSplitterContent() {
     }
   };
 
-  // --- UPDATED: Save Full Rich Context ---
   const saveToHistory = async (splitData: any, log: string) => {
      let finalTitle = sessionName.trim();
      if (!finalTitle) {
@@ -362,11 +375,10 @@ function BillSplitterContent() {
          finalTitle = `Session ${sessionNum}`;
      }
 
-     // Construct Rich Payload
      const richData = {
          split: splitData,
-         items: items,    // Save original receipt!
-         people: people,  // Save people list!
+         items: items,    
+         people: people,  
          reasoning: log
      };
 
@@ -375,7 +387,7 @@ function BillSplitterContent() {
          bill_title: finalTitle,
          total_amount: displayedTotal,
          currency: symbol, 
-         data: richData, // Save the Rich Object
+         data: richData, 
          reasoning_log: log,
      });
 
@@ -385,9 +397,8 @@ function BillSplitterContent() {
      }
   };
 
-  // --- Handle "Modify in Chat" ---
   const handleModifyInChat = () => {
-    // 1. Save context for the chat page
+    // 1. Save context for AI Logic
     const contextData = JSON.stringify({
         items: items, 
         people_list: people,
@@ -395,16 +406,35 @@ function BillSplitterContent() {
     });
     sessionStorage.setItem("billa_chat_context", contextData);
 
-    // 2. Create the prompt for the AI
+    // 2. NEW: Save Visual Snapshot for the "Cancel" / Back button
+    // This allows Step D in useEffect to restore the view when coming back
+    sessionStorage.setItem("billa_snapshot", JSON.stringify({
+        items,
+        people,
+        structuredSplit,
+        splitResult,
+        step: "SUMMARY"
+    }));
+
+    // 3. Prompt setup
     const initialPrompt = instruction 
         ? `I tried to split the bill with instruction: "${instruction}", but I need to make changes.` 
         : `I split the bill equally, but I need to make specific adjustments.`;
     
-    // 3. Save prompt to trigger auto-send on load
     sessionStorage.setItem("billa_initial_prompt", initialPrompt);
     
-    // 4. Go to chat
     router.push(`/dashboard/chat`);
+  };
+
+  // --- FINISH SESSION HANDLER ---
+  const handleFinish = () => {
+      // Clear all snapshots to prevent stale data loading next time
+      sessionStorage.removeItem("billa_snapshot");
+      sessionStorage.removeItem("billa_chat_result");
+      sessionStorage.removeItem("billa_restore_data");
+      
+      router.refresh(); 
+      router.push("/dashboard");
   };
 
   return (
@@ -434,7 +464,6 @@ function BillSplitterContent() {
                 />
             </div>
 
-            {/* --- Collapsible Saved Groups Dropdown --- */}
             {!isGuest && savedGroups.length > 0 && (
                 <div className="bg-[#0c0c0e] border border-white/5 rounded-2xl overflow-hidden transition-all">
                     <button 
@@ -491,9 +520,7 @@ function BillSplitterContent() {
 
               {!isGuest && (
                 <div className="space-y-3 pt-2">
-                  {/* --- Dynamic Save/Update Logic --- */}
                   {activeGroupId && hasGroupChanged() ? (
-                      // CASE 1: Updating an existing group
                       <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 animate-in fade-in">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -507,7 +534,6 @@ function BillSplitterContent() {
                           </p>
                       </div>
                   ) : !activeGroupId ? (
-                      // CASE 2: Saving a completely new group
                       <>
                         <div className="flex items-center justify-between px-1">
                             <span className="text-xs text-slate-400 font-medium tracking-tight">Save this group?</span>
@@ -523,7 +549,6 @@ function BillSplitterContent() {
                         )}
                       </>
                   ) : (
-                      // CASE 3: Loaded group but NO changes (Show status)
                        <div className="flex items-center justify-center gap-2 p-2 opacity-50">
                             <Users size={12} className="text-zinc-500"/>
                             <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Loaded: {groupName}</span>
@@ -646,7 +671,6 @@ function BillSplitterContent() {
                   <div className="px-6 pb-6 animate-in slide-in-from-top-2 duration-200 space-y-4">
                     <div className="p-4 bg-black rounded-xl text-[10px] font-mono text-zinc-500 whitespace-pre-wrap leading-relaxed border border-white/5 max-h-60 overflow-y-auto italic text-left">{splitResult}</div>
                     
-                    {/* --- NEW: MODIFY IN CHAT BUTTON --- */}
                     <Button 
                         variant="ghost" 
                         onClick={handleModifyInChat}
@@ -667,10 +691,7 @@ function BillSplitterContent() {
                 }}>
                   <Share2 className="w-4 h-4 mr-2" /> Share via WhatsApp
                 </Button>
-                <Button variant="outline" className="w-full h-12 border-white/5 text-zinc-500 font-bold rounded-xl uppercase tracking-widest text-[10px]" onClick={() => {
-                    router.refresh(); 
-                    router.push("/dashboard");
-                }}>
+                <Button variant="outline" className="w-full h-12 border-white/5 text-zinc-500 font-bold rounded-xl uppercase tracking-widest text-[10px]" onClick={handleFinish}>
                   Finish Session
                 </Button>
               </div>
